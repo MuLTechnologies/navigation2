@@ -292,6 +292,13 @@
       <input_port name="number_of_retries">Number of retries</input_port>
     </Control>
 
+    <Control ID="VariableRecoveryNode">
+      <input_port name="number_of_retries">Number of retries</input_port>
+      <input_port name="global_frame">Global frame</input_port>
+      <input_port name="robot_frame">Robot frame</input_port>
+      <input_port name="tolerance">Tolerance when checking the last retry pose</input_port>
+    </Control>
+
     <Control ID="RoundRobin"/>
 
     <!-- ############################### DECORATOR NODES ############################## -->
