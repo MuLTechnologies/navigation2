@@ -177,8 +177,8 @@ list(APPEND plugin_libs nav2_path_longer_on_approach_bt_node)
 add_library(nav2_recovery_node_bt_node SHARED plugins/control/recovery_node.cpp)
 list(APPEND plugin_libs nav2_recovery_node_bt_node)
 
-add_library(nav2_variable_recovery_node_bt_node SHARED plugins/control/variable_recovery_node.cpp)
-list(APPEND plugin_libs nav2_variable_recovery_node_bt_node)
+add_library(nav2_recovery_node_with_reset_bt_node SHARED plugins/control/recovery_node_with_reset.cpp)
+list(APPEND plugin_libs nav2_recovery_node_with_reset_bt_node)
 
 add_library(nav2_navigate_to_pose_action_bt_node SHARED plugins/action/navigate_to_pose_action.cpp)
 list(APPEND plugin_libs nav2_navigate_to_pose_action_bt_node)

@@ -13,7 +13,7 @@
 // limitations under the License.
 
 #include <string>
-#include "nav2_behavior_tree/plugins/control/variable_recovery_node.hpp"
+#include "nav2_behavior_tree/plugins/control/recovery_node_with_reset.hpp"
 
 namespace nav2_behavior_tree
 {
