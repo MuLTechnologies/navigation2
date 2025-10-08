@@ -42,7 +42,7 @@ BT::NodeStatus VariableRecoveryNode::tick()
   const unsigned children_count = children_nodes_.size();
 
   if (children_count != 2) {
-    throw BT::BehaviorTreeException("[VariableRecoveryNode] Recovery Node '" + name() + "' must only have 2 children.");
+    throw BT::BehaviorTreeException(name() + " : Recovery Node must only have 2 children.");
   }
 
   setStatus(BT::NodeStatus::RUNNING);
@@ -63,7 +63,7 @@ BT::NodeStatus VariableRecoveryNode::tick()
         case BT::NodeStatus::FAILURE:
           {
             if (!isRobotCloseToPose(last_retry_pose_)) {
-              RCLCPP_WARN_STREAM(node_->get_logger(), "[VariableRecoveryNode] Retry count restarted because robot is away from last pose.");
+              RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : Retry count restarted because robot is away from last pose.");
               retry_count_ = 0;
             }
 
@@ -72,11 +72,11 @@ BT::NodeStatus VariableRecoveryNode::tick()
               // halt first child and tick second child in next iteration
               ControlNode::haltChild(0);
               current_child_idx_++;
-              RCLCPP_WARN_STREAM(node_->get_logger(), "[VariableRecoveryNode] Retry initiated with retry_count: " << retry_count_);
+              RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : Retry initiated with retry_count: " << retry_count_);
               break;
             } else {
               // reset node and return failure when max retries has been exceeded
-              RCLCPP_WARN_STREAM(node_->get_logger(), "[VariableRecoveryNode] Retry count exceeded, returning FAILURE");
+              RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : Retry count exceeded, returning FAILURE");
               halt();
               return BT::NodeStatus::FAILURE;
             }
@@ -89,7 +89,7 @@ BT::NodeStatus VariableRecoveryNode::tick()
 
         default:
           {
-            throw BT::LogicError("[VariableRecoveryNode] A child node must never return IDLE");
+            throw BT::LogicError(name() + " : A child node must never return IDLE");
           }
       }  // end switch
 
@@ -108,7 +108,7 @@ BT::NodeStatus VariableRecoveryNode::tick()
           {
             // reset node and return failure if second child fails
             halt();
-            RCLCPP_WARN_STREAM(node_->get_logger(), "[VariableRecoveryNode] Recovery failed, returning FAILURE");
+            RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : Recovery failed, returning FAILURE");
 
             return BT::NodeStatus::FAILURE;
           }
@@ -120,7 +120,7 @@ BT::NodeStatus VariableRecoveryNode::tick()
 
         default:
           {
-            throw BT::LogicError("[VariableRecoveryNode] A child node must never return IDLE");
+            throw BT::LogicError(name() + " : A child node must never return IDLE");
           }
       }  // end switch
     }
@@ -149,7 +149,7 @@ bool VariableRecoveryNode::isRobotCloseToPose(geometry_msgs::msg::PoseStamped in
   double dx = current_pose.pose.position.x - input_pose.pose.position.x;
   double dy = current_pose.pose.position.y - input_pose.pose.position.y;
   double distance = sqrt(dx * dx + dy * dy);
-  RCLCPP_WARN_STREAM(node_->get_logger(), "[VariableRecoveryNode] arePosesNearby dist: " << distance << ", with tolerance: " << tol);
+  RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : arePosesNearby dist: " << distance << ", with tolerance: " << tol);
 
   return (dx * dx + dy * dy) <= (tol * tol);
 }
@@ -160,7 +160,7 @@ geometry_msgs::msg::PoseStamped VariableRecoveryNode::getRobotPoseInGlobalFrame(
       robot_pose, *tf_, global_frame_, robot_frame_,
       transform_tolerance_))
   {
-    RCLCPP_ERROR(node_->get_logger(), "[VariableRecoveryNode] Current robot pose is not available.");
+    RCLCPP_ERROR_STREAM(node_->get_logger(), name() << " : Current robot pose is not available.");
     return geometry_msgs::msg::PoseStamped();
   }
   return robot_pose;

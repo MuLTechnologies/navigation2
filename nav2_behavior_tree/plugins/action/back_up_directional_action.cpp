@@ -67,7 +67,7 @@ void BackUpDirectionalAction::on_tick()
     goal_.speed = -std::fabs(goal_.speed);
   }
 
-  RCLCPP_WARN_STREAM(node_->get_logger(), "[BackUpDirectionalAction] Speed: " << goal_.speed);
+  RCLCPP_INFO_STREAM(node_->get_logger(), "[BackUpDirectionalAction] Speed: " << goal_.speed);
 
   increment_recovery_count();
 }
