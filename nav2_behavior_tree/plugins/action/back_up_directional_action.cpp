@@ -43,6 +43,8 @@ BackUpDirectionalAction::BackUpDirectionalAction(
   tf_buffer_ =
     config().blackboard->template get<std::shared_ptr<tf2_ros::Buffer>>(
     "tf_buffer");
+
+  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
 }
 
 void BackUpDirectionalAction::on_tick()
@@ -52,7 +54,8 @@ void BackUpDirectionalAction::on_tick()
 
   geometry_msgs::msg::PoseStamped reference_pose = path.poses.back();
   reference_pose.header.frame_id = path.header.frame_id;
-  reference_pose.header.stamp = path.header.stamp;
+  // Using time now as here we take the global plan as input which often is a few seconds old and throws an error on timestamp
+  reference_pose.header.stamp = node_->now();
 
   geometry_msgs::msg::PoseStamped transformed_pose;
 
@@ -63,6 +66,8 @@ void BackUpDirectionalAction::on_tick()
   } else {
     goal_.speed = -std::fabs(goal_.speed);
   }
+
+  RCLCPP_INFO_STREAM(node_->get_logger(), "[BackUpDirectionalAction] Speed: " << goal_.speed);
 
   increment_recovery_count();
 }

@@ -65,7 +65,7 @@ public:
   }
 private:
   std::shared_ptr<tf2_ros::Buffer> tf_buffer_;
-
+  rclcpp::Node::SharedPtr node_;
 };
 
 }  // namespace nav2_behavior_tree
