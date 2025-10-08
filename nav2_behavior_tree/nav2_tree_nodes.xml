@@ -294,11 +294,11 @@
       <input_port name="number_of_retries">Number of retries</input_port>
     </Control>
 
-    <Control ID="VariableRecoveryNode">
+    <Control ID="RecoveryNodeWithReset">
       <input_port name="number_of_retries">Number of retries</input_port>
       <input_port name="global_frame">Global frame</input_port>
       <input_port name="robot_frame">Robot frame</input_port>
-      <input_port name="tolerance">Tolerance when checking the last retry pose</input_port>
+      <input_port name="distance_to_reset">DIstance to reset the retry count when checking the last retry pose</input_port>
     </Control>
 
     <Control ID="RoundRobin"/>

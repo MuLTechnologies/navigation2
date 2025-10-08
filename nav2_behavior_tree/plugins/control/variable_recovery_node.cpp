@@ -18,7 +18,7 @@
 namespace nav2_behavior_tree
 {
 
-VariableRecoveryNode::VariableRecoveryNode(
+RecoveryNodeWithReset::RecoveryNodeWithReset(
   const std::string & name,
   const BT::NodeConfiguration & conf)
 : BT::ControlNode::ControlNode(name, conf),
@@ -37,7 +37,7 @@ VariableRecoveryNode::VariableRecoveryNode(
   last_retry_pose_ = getRobotPoseInGlobalFrame();
 }
 
-BT::NodeStatus VariableRecoveryNode::tick()
+BT::NodeStatus RecoveryNodeWithReset::tick()
 {
   const unsigned children_count = children_nodes_.size();
 
@@ -131,17 +131,17 @@ BT::NodeStatus VariableRecoveryNode::tick()
   return BT::NodeStatus::FAILURE;
 }
 
-void VariableRecoveryNode::halt()
+void RecoveryNodeWithReset::halt()
 {
   ControlNode::halt();
   retry_count_ = 0;
   current_child_idx_ = 0;
 }
 
-bool VariableRecoveryNode::isRobotCloseToPose(geometry_msgs::msg::PoseStamped input_pose)
+bool RecoveryNodeWithReset::isRobotCloseToPose(geometry_msgs::msg::PoseStamped input_pose)
 {
-  double tol;
-  getInput("tolerance", tol);
+  double distance_to_reset;
+  getInput("distance_to_reset", distance_to_reset);
 
   auto current_pose = getRobotPoseInGlobalFrame();
 
@@ -149,12 +149,12 @@ bool VariableRecoveryNode::isRobotCloseToPose(geometry_msgs::msg::PoseStamped in
   double dx = current_pose.pose.position.x - input_pose.pose.position.x;
   double dy = current_pose.pose.position.y - input_pose.pose.position.y;
   double distance = sqrt(dx * dx + dy * dy);
-  RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : arePosesNearby dist: " << distance << ", with tolerance: " << tol);
+  RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : arePosesNearby dist: " << distance << ", with distance_to_reset: " << distance_to_reset);
 
-  return (dx * dx + dy * dy) <= (tol * tol);
+  return (dx * dx + dy * dy) <= (distance_to_reset * distance_to_reset);
 }
 
-geometry_msgs::msg::PoseStamped VariableRecoveryNode::getRobotPoseInGlobalFrame() {
+geometry_msgs::msg::PoseStamped RecoveryNodeWithReset::getRobotPoseInGlobalFrame() {
   geometry_msgs::msg::PoseStamped robot_pose;
   if (!nav2_util::getCurrentPose(
       robot_pose, *tf_, global_frame_, robot_frame_,
@@ -172,5 +172,5 @@ geometry_msgs::msg::PoseStamped VariableRecoveryNode::getRobotPoseInGlobalFrame(
 #include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory)
 {
-  factory.registerNodeType<nav2_behavior_tree::VariableRecoveryNode>("VariableRecoveryNode");
+  factory.registerNodeType<nav2_behavior_tree::RecoveryNodeWithReset>("RecoveryNodeWithReset");
 }

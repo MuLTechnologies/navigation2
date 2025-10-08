@@ -26,7 +26,7 @@
 namespace nav2_behavior_tree
 {
 /**
- * @brief The VariableRecoveryNode has only two children and returns SUCCESS if and only if the first child
+ * @brief The RecoveryNodeWithReset has only two children and returns SUCCESS if and only if the first child
  * returns SUCCESS.
  *
  * - If the first child returns FAILURE, the second child will be executed.  After that the first
@@ -40,22 +40,22 @@ namespace nav2_behavior_tree
  *   The counter is reset if the robot travels a certain distance from the last retry to allow for full number of retres in each scenario.
  *
  */
-class VariableRecoveryNode : public BT::ControlNode
+class RecoveryNodeWithReset : public BT::ControlNode
 {
 public:
   /**
-   * @brief A constructor for nav2_behavior_tree::VariableRecoveryNode
+   * @brief A constructor for nav2_behavior_tree::RecoveryNodeWithReset
    * @param name Name for the XML tag for this node
    * @param conf BT node configuration
    */
-  VariableRecoveryNode(
+  RecoveryNodeWithReset(
     const std::string & name,
     const BT::NodeConfiguration & conf);
 
   /**
-   * @brief A destructor for nav2_behavior_tree::VariableRecoveryNode
+   * @brief A destructor for nav2_behavior_tree::RecoveryNodeWithReset
    */
-  ~VariableRecoveryNode() override = default;
+  ~RecoveryNodeWithReset() override = default;
 
   /**
    * @brief A method to check if the robot is within a certain tolerance of a pose.
