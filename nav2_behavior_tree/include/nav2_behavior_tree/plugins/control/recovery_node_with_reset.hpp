@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__CONTROL__recovery_node_with_reset_HPP_
-#define NAV2_BEHAVIOR_TREE__PLUGINS__CONTROL__recovery_node_with_reset_HPP_
+#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__CONTROL__RECOVERY_NODE_WITH_RESET_HPP_
+#define NAV2_BEHAVIOR_TREE__PLUGINS__CONTROL__RECOVERY_NODE_WITH_RESET_HPP_
 
 #include <string>
 #include "behaviortree_cpp_v3/control_node.h"
@@ -108,4 +108,4 @@ private:
 
 }  // namespace nav2_behavior_tree
 
-#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__CONTROL__recovery_node_with_reset_HPP_
+#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__CONTROL__RECOVERY_NODE_WITH_RESET_HPP_
