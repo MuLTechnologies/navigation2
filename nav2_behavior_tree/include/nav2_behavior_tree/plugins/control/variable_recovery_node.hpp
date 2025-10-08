@@ -35,6 +35,9 @@ namespace nav2_behavior_tree
  * - If the first or second child returns RUNNING, this node returns RUNNING.
  *
  * - If the second child returns FAILURE, this control node will stop the loop and returns FAILURE.
+ * 
+ * - The number of retries is calculated. If a certain number is exceeded the whole node returns failure.
+ *   The counter is reset if the robot travels a certain distance from the last retry to allow for full number of retres in each scenario.
  *
  */
 class VariableRecoveryNode : public BT::ControlNode
@@ -55,8 +58,10 @@ public:
   ~VariableRecoveryNode() override = default;
 
   /**
-   * @brief TODOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO
-   * @return 
+   * @brief A method to check if the robot is within a certain tolerance of a pose.
+   * 
+   * @param input_pose Input pose to check
+   * @return state if the robot is within tolerance or not
    */
   bool isRobotCloseToPose(geometry_msgs::msg::PoseStamped input_pose);
 

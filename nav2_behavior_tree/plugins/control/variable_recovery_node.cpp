@@ -62,7 +62,6 @@ BT::NodeStatus VariableRecoveryNode::tick()
 
         case BT::NodeStatus::FAILURE:
           {
-            // TU DODAĆ RESET RETRY COUNT GDY JEST DALEKO OD LAST RETRY POSE
             if (!isRobotCloseToPose(last_retry_pose_)) {
               RCLCPP_WARN_STREAM(node_->get_logger(), "[VariableRecoveryNode] Retry count restarted because robot is away from last pose.");
               retry_count_ = 0;
