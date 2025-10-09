@@ -77,7 +77,7 @@ public:
       BT::InputPort<int>("number_of_retries", 1, "Number of retries"),
       BT::InputPort<std::string>("global_frame", "map", "Global frame"),
       BT::InputPort<std::string>("robot_frame", "base_link", "robot frame"),
-      BT::InputPort<double>("tolerance", "Tolerance when checking the last retry pose")
+      BT::InputPort<double>("distance_to_reset", "Distance when checking the last retry pose")
     };
   }
 
