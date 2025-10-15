@@ -24,6 +24,28 @@
 namespace nav2_util
 {
 
+bool getDistanceToPose(
+  double & output_distance, geometry_msgs::msg::PoseStamped input_pose,
+  tf2_ros::Buffer & tf_buffer, const std::string robot_frame, const double transform_timeout)
+{
+  geometry_msgs::msg::PoseStamped robot_pose;
+  static rclcpp::Logger logger = rclcpp::get_logger("getDistanceToPose");
+
+  if (!nav2_util::getCurrentPose(
+    robot_pose, tf_buffer, input_pose.header.frame_id, robot_frame,
+    transform_timeout))
+  {
+    RCLCPP_ERROR(logger, "Couldn't get the current pose!");
+    return false;
+  }
+
+  double dx = robot_pose.pose.position.x - input_pose.pose.position.x;
+  double dy = robot_pose.pose.position.y - input_pose.pose.position.y;
+  output_distance = sqrt(dx * dx + dy * dy);
+
+  return true;
+}
+
 bool getCurrentPose(
   geometry_msgs::msg::PoseStamped & global_pose,
   tf2_ros::Buffer & tf_buffer, const std::string global_frame,
