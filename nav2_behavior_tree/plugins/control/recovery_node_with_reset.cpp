@@ -140,18 +140,18 @@ void RecoveryNodeWithReset::halt()
 
 bool RecoveryNodeWithReset::isRobotCloseToPose(geometry_msgs::msg::PoseStamped input_pose)
 {
-  double distance_to_reset;
+  double distance_to_reset, distance_to_pose;
+
   getInput("distance_to_reset", distance_to_reset);
 
-  auto current_pose = getRobotPoseInGlobalFrame();
+  nav2_util::getDistanceToPose(
+    distance_to_pose, input_pose, *tf_, robot_frame_, transform_tolerance_);
 
+  RCLCPP_INFO_STREAM(
+    node_->get_logger(), name() << " : distance_to_pose: " << distance_to_pose
+                                << ", with distance_to_reset: " << distance_to_reset);
 
-  double dx = current_pose.pose.position.x - input_pose.pose.position.x;
-  double dy = current_pose.pose.position.y - input_pose.pose.position.y;
-  double distance = sqrt(dx * dx + dy * dy);
-  RCLCPP_INFO_STREAM(node_->get_logger(), name() << " : arePosesNearby dist: " << distance << ", with distance_to_reset: " << distance_to_reset);
-
-  return (dx * dx + dy * dy) <= (distance_to_reset * distance_to_reset);
+  return (distance_to_pose <= distance_to_reset);
 }
 
 geometry_msgs::msg::PoseStamped RecoveryNodeWithReset::getRobotPoseInGlobalFrame() {
