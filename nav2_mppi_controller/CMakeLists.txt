@@ -3,6 +3,7 @@ project(nav2_mppi_controller)
 
 set(dependencies_pkgs
 angles
+backward_ros
 geometry_msgs
 nav2_common
 nav2_core
