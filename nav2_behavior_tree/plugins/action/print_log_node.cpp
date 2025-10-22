@@ -30,14 +30,8 @@ BT::NodeStatus PrintLog::tick()
   std::string message;
   std::string level;
 
-  if (!getInput("message", message)) {
-    RCLCPP_WARN(logger_, "PrintLog: missing 'message' input");
-    return BT::NodeStatus::FAILURE;
-  }
-
-  if (!getInput("level", level)) {
-    level = "INFO";  // Default level
-  }
+  getInput("message", message);
+  getInput("level", level);
 
   if (level == "DEBUG") {
     RCLCPP_DEBUG_STREAM(logger_, message);

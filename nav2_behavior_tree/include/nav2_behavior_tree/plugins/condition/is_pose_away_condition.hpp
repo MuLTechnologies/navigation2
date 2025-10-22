@@ -13,8 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__IS_POSE_AWAY_CONDITION_HPP_
-#define NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__IS_POSE_AWAY_CONDITION_HPP_
+#pragma once
 
 #include <memory>
 #include <string>
@@ -30,8 +29,8 @@ namespace nav2_behavior_tree
 {
 
 /**
- * @brief A BT::ConditionNode that returns SUCCESS every time the robot
- * travels a specified distance and FAILURE otherwise
+ * @brief A BT::ConditionNode that returns SUCCESS when the cartesian
+ * distance to the provided pose is above specified threshold
  */
 class IsPoseAwayCondition : public BT::ConditionNode
 {
@@ -52,8 +51,8 @@ public:
   BT::NodeStatus tick() override;
 
   /**
-   * @brief Checks if the current robot pose lies within a given distance from the goal
-   * @return bool true when pose is above threshold distance, false otherwise
+   * @brief Checks if provided pose lies outside of a given distance from the robot
+   * @return bool true when the pose is above threshold distance, false otherwise
    */
   bool isPoseAway();
 
@@ -78,5 +77,3 @@ private:
 };
 
 }  // namespace nav2_behavior_tree
-
-#endif  // NAV2_BEHAVIOR_TREE__PLUGINS__CONDITION__IS_POSE_AWAY_CONDITION_HPP_
