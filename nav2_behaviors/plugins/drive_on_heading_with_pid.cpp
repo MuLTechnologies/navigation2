@@ -29,11 +29,11 @@ Status DriveOnHeadingWithPid<ActionT>::onRun(const std::shared_ptr<const typenam
   end_time_ = this->clock_->now() + command_time_allowance_;
 
   if (!nav2_util::getCurrentPose(
-      initial_pose_, *this->tf_, this->global_frame_, this->robot_base_frame_,
-      this->transform_tolerance_))
+    initial_pose_, *this->tf_, this->global_frame_, this->robot_base_frame_,
+    this->transform_tolerance_))
   {
-      RCLCPP_ERROR(this->logger_, "Initial robot pose is not available.");
-      return Status::FAILED;
+    RCLCPP_ERROR(this->logger_, "Initial robot pose is not available.");
+    return Status::FAILED;
   }
 
   return Status::SUCCEEDED;

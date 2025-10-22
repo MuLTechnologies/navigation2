@@ -39,6 +39,7 @@ BT::NodeStatus IsPoseAwayCondition::tick()
   double dist_threshold, dist_to_pose;
   getInput("pose", away_pose);
   getInput("distance", dist_threshold);
+  getInput("robot_base_frame", robot_base_frame_);
 
   if (!nav2_util::getDistanceToPose(dist_to_pose, away_pose,
         *tf_, robot_base_frame_, transform_tolerance_)) {
