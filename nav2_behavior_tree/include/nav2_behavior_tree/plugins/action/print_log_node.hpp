@@ -10,7 +10,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 #pragma once
 
 #include <memory>
@@ -48,7 +47,7 @@ public:
   static BT::PortsList providedPorts()
   {
     return {
-      BT::InputPort<std::string>("message", "PrintLog: default msg"),
+      BT::InputPort<std::string>("message", "No message provided"),
       BT::InputPort<std::string>("level", "INFO")
     };
   }

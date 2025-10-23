@@ -1,6 +1,3 @@
-// Copyright (c) 2025 MUL Technologies
-// Copyright (c) 2025 Jakub Klein
-//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -16,17 +13,14 @@
 #include "nav2_behavior_tree/plugins/action/print_log_node.hpp"
 #include "behaviortree_cpp_v3/bt_factory.h"
 
-namespace nav2_behavior_tree
-{
+namespace nav2_behavior_tree {
 
-PrintLog::PrintLog(const std::string& name, const BT::NodeConfiguration& config)
-: BT::SyncActionNode(name, config)
-, logger_(rclcpp::get_logger("print_log_node"))
-{
-}
+PrintLog::PrintLog(const std::string &name, const BT::NodeConfiguration &config)
+    : BT::SyncActionNode(name, config),
+      logger_(config.blackboard->get<rclcpp::Node::SharedPtr>("node")
+                  ->get_logger()) {}
 
-BT::NodeStatus PrintLog::tick()
-{
+BT::NodeStatus PrintLog::tick() {
   std::string message;
   std::string level;
 
@@ -42,16 +36,14 @@ BT::NodeStatus PrintLog::tick()
   } else if (level == "ERROR") {
     RCLCPP_ERROR_STREAM(logger_, message);
   } else {
-    RCLCPP_WARN_STREAM(
-      logger_, "Unknown level: " << message);
+    RCLCPP_WARN_STREAM(logger_, "Undefined severity: " << message);
   }
 
   return BT::NodeStatus::SUCCESS;
 }
 
-BT_REGISTER_NODES(factory)
-{
+BT_REGISTER_NODES(factory) {
   factory.registerNodeType<nav2_behavior_tree::PrintLog>("PrintLog");
 }
 
-}  // namespace nav2_behavior_tree
+} // namespace nav2_behavior_tree
