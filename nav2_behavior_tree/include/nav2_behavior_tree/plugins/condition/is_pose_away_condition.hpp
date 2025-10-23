@@ -64,8 +64,7 @@ public:
   {
     return {
       BT::InputPort<geometry_msgs::msg::PoseStamped>("pose", "Target pose"),
-      BT::InputPort<double>("distance", 1.0, "Distance threshold"),
-      BT::InputPort<std::string>("robot_base_frame", std::string("base_link"), "Robot base frame"),
+      BT::InputPort<double>("distance", 1.0, "Distance threshold")
     };
   }
 

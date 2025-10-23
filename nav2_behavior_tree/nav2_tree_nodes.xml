@@ -295,7 +295,6 @@
     <Condition ID="IsPoseAway">
       <input_port name="pose">Pose to validate </input_port>
       <input_port name="distance">Distance threshold </input_port>
-      <input_port name="robot_base_frame">Robot base frame</input_port>
     </Condition>
 
     <!-- ############################### CONTROL NODES ################################ -->
