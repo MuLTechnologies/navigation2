@@ -26,11 +26,12 @@ namespace nav2_behavior_tree
 
 IsPoseAwayCondition::IsPoseAwayCondition(
   const std::string& condition_name, const BT::NodeConfiguration& conf)
-: BT::ConditionNode(condition_name, conf)
+: BT::ConditionNode(condition_name, conf),
+  node_(config().blackboard->get<rclcpp::Node::SharedPtr>("node")),
+  tf_(config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer"))
 {
-  node_ = config().blackboard->get<rclcpp::Node::SharedPtr>("node");
-  tf_ = config().blackboard->get<std::shared_ptr<tf2_ros::Buffer>>("tf_buffer");
   node_->get_parameter("transform_tolerance", transform_tolerance_);
+  node_->get_parameter("robot_base_frame", robot_base_frame_);
 }
 
 BT::NodeStatus IsPoseAwayCondition::tick()
@@ -39,17 +40,19 @@ BT::NodeStatus IsPoseAwayCondition::tick()
   double dist_threshold, dist_to_pose;
   getInput("pose", away_pose);
   getInput("distance", dist_threshold);
+  getInput("robot_base_frame", robot_base_frame_);
 
-  if (!nav2_util::getDistanceToPose(dist_to_pose, away_pose,
-        *tf_, robot_base_frame_, transform_tolerance_)) {
+  if (!nav2_util::getDistanceToPose(
+        dist_to_pose, away_pose, *tf_, robot_base_frame_, transform_tolerance_)) {
     return BT::NodeStatus::FAILURE;
   }
 
   if (dist_to_pose > dist_threshold) {
     return BT::NodeStatus::SUCCESS;
   } else {
-    RCLCPP_WARN_STREAM(
-      node_->get_logger(), "Provided pose is closer than " << dist_threshold << "m threshold!");
+    RCLCPP_INFO_STREAM(
+      node_->get_logger(), name() << " : Provided pose is closer than " << dist_threshold
+                                  << "m threshold, returning FAILURE");
     return BT::NodeStatus::FAILURE;
   }
 }
