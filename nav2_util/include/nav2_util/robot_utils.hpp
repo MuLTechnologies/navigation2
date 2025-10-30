@@ -28,6 +28,20 @@
 
 namespace nav2_util
 {
+
+/**
+* @brief get the distance to another pose
+* @param input_pose Pose to calculate distance to
+* @param tf_buffer TF buffer to use for the transformation
+* @param robot_frame Frame of the input pose
+* @param transform_timeout TF Timeout to use for transformation
+* @return bool Whether it could be transformed successfully
+*/
+bool getDistanceToPose(
+  double & output_distance, geometry_msgs::msg::PoseStamped input_pose,
+  tf2_ros::Buffer & tf_buffer, const std::string robot_frame = "base_link",
+  const double transform_timeout = 0.1);
+
 /**
 * @brief get the current pose of the robot
 * @param global_pose Pose to transform
@@ -57,18 +71,6 @@ bool transformPoseInTargetFrame(
   geometry_msgs::msg::PoseStamped & transformed_pose,
   tf2_ros::Buffer & tf_buffer, const std::string target_frame,
   const double transform_timeout = 0.1);
-
-/**
- * @brief Obtains a transform from source_frame_id at source_time ->
- * to target_frame_id at target_time time
- * @param source_frame_id Source frame ID to convert from
- * @param source_time Source timestamp to convert from
- * @param target_frame_id Target frame ID to convert to
- * @param target_time Target time to interpolate to
- * @param transform_tolerance Transform tolerance
- * @param tf_transform Output source->target transform
- * @return True if got correct transform, otherwise false
- */
 
 /**
  * @brief Obtains a transform from source_frame_id -> to target_frame_id

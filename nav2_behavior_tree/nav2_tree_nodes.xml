@@ -231,6 +231,11 @@
       <input_port name="robot_frame">Robot frame to check relative to global_frame</input_port>
     </Action>
 
+    <Action ID="PrintLog">
+      <output_port name="string">Text data to print</output_port>
+      <input_port name="level">Severity level: DEBUG/INFO/WARN/ERROR</input_port>
+    </Action>
+
     <!-- ############################### CONDITION NODES ############################## -->
     <Condition ID="GoalReached">
         <input_port name="goal">Destination</input_port>
@@ -285,6 +290,11 @@
     <Condition ID="IsPathValid">
       <input_port name="path"> Path to validate </input_port>
       <input_port name="server_timeout"> Server timeout </input_port>
+    </Condition>
+
+    <Condition ID="IsPoseAway">
+      <input_port name="pose">Pose to validate </input_port>
+      <input_port name="distance">Distance threshold </input_port>
     </Condition>
 
     <!-- ############################### CONTROL NODES ################################ -->
