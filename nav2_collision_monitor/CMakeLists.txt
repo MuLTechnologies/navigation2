@@ -4,6 +4,7 @@ project(nav2_collision_monitor)
 ### Dependencies ###
 
 find_package(ament_cmake REQUIRED)
+find_package(backward_ros REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(rclcpp_components REQUIRED)
 find_package(sensor_msgs REQUIRED)
