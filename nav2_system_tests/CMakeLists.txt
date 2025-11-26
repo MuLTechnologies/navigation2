@@ -15,7 +15,7 @@ find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(gazebo_ros_pkgs REQUIRED)
-find_package(nav2_amcl REQUIRED)
+# find_package(nav2_amcl REQUIRED)
 find_package(nav2_lifecycle_manager REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(nav2_navfn_planner REQUIRED)
@@ -33,7 +33,7 @@ set(dependencies
   nav2_msgs
   nav_msgs
   visualization_msgs
-  nav2_amcl
+  # nav2_amcl
   nav2_lifecycle_manager
   nav2_behavior_tree
   gazebo_ros_pkgs

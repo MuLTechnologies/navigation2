@@ -20,7 +20,7 @@
   <build_depend>nav2_behavior_tree</build_depend>
   <build_depend>nav_msgs</build_depend>
   <build_depend>visualization_msgs</build_depend>
-  <build_depend>nav2_amcl</build_depend>
+  <!-- <build_depend>nav2_amcl</build_depend> -->
   <build_depend>launch_ros</build_depend>
   <build_depend>launch_testing</build_depend>
   <build_depend>geometry_msgs</build_depend>
@@ -45,7 +45,7 @@
   <exec_depend>nav_msgs</exec_depend>
   <exec_depend>visualization_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
-  <exec_depend>nav2_amcl</exec_depend>
+  <!-- <exec_depend>nav2_amcl</exec_depend> -->
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>tf2_geometry_msgs</exec_depend>
   <exec_depend>gazebo_ros_pkgs</exec_depend>
