@@ -209,7 +209,7 @@ protected:
   std::chrono::milliseconds bond_timeout_;
 
   /// @brief Publisher of the is restarting topic
-  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr is_restarting_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr restarting_process_pub_;
 
   // A map of all nodes to check bond connection
   std::map<std::string, std::shared_ptr<bond::Bond>> bond_map_;

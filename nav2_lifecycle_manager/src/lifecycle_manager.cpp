@@ -73,7 +73,7 @@ LifecycleManager::LifecycleManager(const rclcpp::NodeOptions & options)
     rclcpp::ServicesQoS().get_rmw_qos_profile(),
     callback_group_);
 
-  is_restarting_pub_ = create_publisher<std_msgs::msg::Bool>("~/is_restarting", rclcpp::SystemDefaultsQoS());
+  restarting_process_pub_ = create_publisher<std_msgs::msg::Bool>("restarting_process", rclcpp::SystemDefaultsQoS());
 
   transition_state_map_[Transition::TRANSITION_CONFIGURE] = State::PRIMARY_STATE_INACTIVE;
   transition_state_map_[Transition::TRANSITION_CLEANUP] = State::PRIMARY_STATE_UNCONFIGURED;
@@ -437,7 +437,7 @@ LifecycleManager::checkBondConnections()
 
       auto msg = std::make_unique<std_msgs::msg::Bool>();
       msg->data = true;
-      is_restarting_pub_->publish(std::move(msg));
+      restarting_process_pub_->publish(std::move(msg));
 
       RCLCPP_ERROR(get_logger(), "Restarting only the failed node: %s.", node_name.c_str());
       bond_map_.erase(node_name);
