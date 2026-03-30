@@ -1,4 +1,4 @@
-// Copyright (c) 2021 RoboTech Vision
+// Copyright (c) 2024 Marc Morcos
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,6 @@
 #include <limits>
 #include <memory>
 #include <string>
-#include <vector>
 
 #include "behaviortree_cpp_v3/decorator_node.h"
 #include "geometry_msgs/msg/pose_stamped.hpp"
@@ -24,12 +23,12 @@
 #include "nav_msgs/msg/path.hpp"
 #include "tf2_ros/create_timer_ros.h"
 
-#include "nav2_behavior_tree/plugins/action/truncate_path_local_action.hpp"
+#include "nav2_behavior_tree/plugins/action/get_pose_from_path_by_distance_action.hpp"
 
 namespace nav2_behavior_tree
 {
 
-TruncatePathLocal::TruncatePathLocal(
+GetPoseFromPathByDistance::GetPoseFromPathByDistance(
   const std::string & name,
   const BT::NodeConfiguration & conf)
 : BT::ActionNodeBase(name, conf)
@@ -39,17 +38,16 @@ TruncatePathLocal::TruncatePathLocal(
     "tf_buffer");
 }
 
-inline BT::NodeStatus TruncatePathLocal::tick()
+inline BT::NodeStatus GetPoseFromPathByDistance::tick()
 {
   setStatus(BT::NodeStatus::RUNNING);
 
-  double distance_forward, distance_backward;
+  double distance;
   geometry_msgs::msg::PoseStamped pose;
   double angular_distance_weight;
   double max_robot_pose_search_dist;
 
-  getInput("distance_forward", distance_forward);
-  getInput("distance_backward", distance_backward);
+  getInput("distance", distance);
   getInput("angular_distance_weight", angular_distance_weight);
   getInput("max_robot_pose_search_dist", max_robot_pose_search_dist);
 
@@ -66,7 +64,8 @@ inline BT::NodeStatus TruncatePathLocal::tick()
   }
 
   if (path_.poses.empty()) {
-    setOutput("output_path", path_);
+    // Return robot pose if path is empty
+    setOutput("output_pose", pose);
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -76,7 +75,7 @@ inline BT::NodeStatus TruncatePathLocal::tick()
       closest_pose_detection_begin_, path_.poses.end(), max_robot_pose_search_dist);
   }
 
-  // find the closest pose on the path
+  // Find the closest pose on the path to the robot
   auto current_pose = nav2_util::geometry_utils::min_by(
     closest_pose_detection_begin_, closest_pose_detection_end,
     [&pose, angular_distance_weight](const geometry_msgs::msg::PoseStamped & ps) {
@@ -87,25 +86,34 @@ inline BT::NodeStatus TruncatePathLocal::tick()
     closest_pose_detection_begin_ = current_pose;
   }
 
-  // expand forwards to extract desired length
+  // Find the pose at the specified distance forward from current pose
   auto forward_pose_it = nav2_util::geometry_utils::first_after_integrated_distance(
-    current_pose, path_.poses.end(), distance_forward);
+    current_pose, path_.poses.end(), distance);
 
-  // expand backwards to extract desired length
-  // Note: current_pose + 1 is used because reverse iterator points to a cell before it
-  auto backward_pose_it = nav2_util::geometry_utils::first_after_integrated_distance(
-    std::reverse_iterator(current_pose + 1), path_.poses.rend(), distance_backward);
+  // Get the pose (forward_pose_it points one past the desired pose, so we need the one before)
+  geometry_msgs::msg::PoseStamped output_pose;
+  if (forward_pose_it == path_.poses.begin()) {
+    // Edge case: distance is 0 or very small
+    output_pose = *forward_pose_it;
+  } else if (forward_pose_it == path_.poses.end()) {
+    // Edge case: distance extends beyond the path, use the last pose
+    output_pose = path_.poses.back();
+  } else {
+    // Normal case: use the pose just before forward_pose_it
+    output_pose = *(forward_pose_it - 1);
+  }
 
-  nav_msgs::msg::Path output_path;
-  output_path.header = path_.header;
-  output_path.poses = std::vector<geometry_msgs::msg::PoseStamped>(
-    backward_pose_it.base(), forward_pose_it);
-  setOutput("output_path", output_path);
+  // Ensure frame_id is set
+  if (output_pose.header.frame_id.empty()) {
+    output_pose.header.frame_id = path_.header.frame_id;
+  }
+
+  setOutput("output_pose", output_pose);
 
   return BT::NodeStatus::SUCCESS;
 }
 
-inline bool TruncatePathLocal::getRobotPose(
+inline bool GetPoseFromPathByDistance::getRobotPose(
   std::string path_frame_id, geometry_msgs::msg::PoseStamped & pose)
 {
   if (!getInput("pose", pose)) {
@@ -131,14 +139,14 @@ inline bool TruncatePathLocal::getRobotPose(
 }
 
 double
-TruncatePathLocal::poseDistance(
+GetPoseFromPathByDistance::poseDistance(
   const geometry_msgs::msg::PoseStamped & pose1,
   const geometry_msgs::msg::PoseStamped & pose2,
   const double angular_distance_weight)
 {
   double dx = pose1.pose.position.x - pose2.pose.position.x;
   double dy = pose1.pose.position.y - pose2.pose.position.y;
-  // taking angular distance into account in addition to spatial distance
+  // Taking angular distance into account in addition to spatial distance
   // (to improve picking a correct pose near cusps and loops)
   tf2::Quaternion q1;
   tf2::convert(pose1.pose.orientation, q1);
@@ -152,6 +160,6 @@ TruncatePathLocal::poseDistance(
 
 #include "behaviortree_cpp_v3/bt_factory.h"
 BT_REGISTER_NODES(factory) {
-  factory.registerNodeType<nav2_behavior_tree::TruncatePathLocal>(
-    "TruncatePathLocal");
+  factory.registerNodeType<nav2_behavior_tree::GetPoseFromPathByDistance>(
+    "GetPoseFromPathByDistance");
 }
