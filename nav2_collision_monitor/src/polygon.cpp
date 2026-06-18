@@ -378,6 +378,10 @@ Polygon::dynamicParametersCallback(
       if (param_name == polygon_name_ + "." + "enabled") {
         enabled_ = parameter.as_bool();
       }
+    } else if (param_type == rcl_interfaces::msg::ParameterType::PARAMETER_DOUBLE) {
+      if (param_name == polygon_name_ + "." + "time_before_collision") {
+        time_before_collision_ = parameter.as_double();
+      }
     }
   }
   result.successful = true;
