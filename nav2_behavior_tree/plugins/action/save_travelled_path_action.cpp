@@ -46,6 +46,27 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
     previous_poses_.clear();
     previous_poses_.emplace_back(current_pose);
   } else {
+    // If the robot moved backward along the trail, the closest buffered pose
+    // is no longer the last one. In that case, drop every pose after the closest one
+    // so the trail stays a monotonic history of poses truly behind the robot.
+    if (previous_poses_.size() >= 2) {
+      size_t closest_idx = previous_poses_.size() - 1;
+      double closest_dist = nav2_util::geometry_utils::euclidean_distance(
+        current_pose, previous_poses_.back());
+      for (size_t i = 0; i + 1 < previous_poses_.size(); ++i) {
+        const double d = nav2_util::geometry_utils::euclidean_distance(
+          current_pose, previous_poses_[i]);
+        if (d < closest_dist) {
+          closest_dist = d;
+          closest_idx = i;
+        }
+      }
+      if (closest_idx + 1 < previous_poses_.size()) {
+        previous_poses_.erase(
+          previous_poses_.begin() + closest_idx + 1, previous_poses_.end());
+      }
+    }
+
     // Append current pose if it's far enough from the last recorded one
     if (previous_poses_.empty() ||
       nav2_util::geometry_utils::euclidean_distance(current_pose, previous_poses_.back()) >=
