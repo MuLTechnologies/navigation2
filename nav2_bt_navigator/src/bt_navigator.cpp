@@ -82,7 +82,7 @@ BtNavigator::BtNavigator(rclcpp::NodeOptions options)
     "nav2_back_up_cancel_bt_node",
     "nav2_drive_on_heading_cancel_bt_node",
     "nav2_is_battery_charging_condition_bt_node",
-    "nav2_get_backup_pose_action_bt_node",
+    "nav2_save_travelled_path_action_bt_node",
     "nav2_get_pose_from_path_by_distance_action_bt_node"
   };
 
