@@ -72,21 +72,37 @@ inline BT::NodeStatus GetPoseFromPathByDistance::tick()
     closest_pose_detection_begin_ = current_pose;
   }
 
-  // Find the pose at the specified distance forward from current pose
-  auto forward_pose_it = nav2_util::geometry_utils::first_after_integrated_distance(
-    current_pose, path_.poses.end(), distance);
-
-  // Get the pose (forward_pose_it points one past the desired pose, so we need the one before)
+  // Find the pose at the specified distance from the current pose.
+  // Positive distance walks forward along the path; negative walks backward.
   geometry_msgs::msg::PoseStamped output_pose;
-  if (forward_pose_it == path_.poses.begin()) {
-    // Edge case: distance is 0 or very small
-    output_pose = *forward_pose_it;
-  } else if (forward_pose_it == path_.poses.end()) {
-    // Edge case: distance extends beyond the path, use the last pose
-    output_pose = path_.poses.back();
+  if (distance >= 0.0) {
+    auto forward_pose_it = nav2_util::geometry_utils::first_after_integrated_distance(
+      current_pose, path_.poses.end(), distance);
+
+    // Get the pose (forward_pose_it points one past the desired pose, so we need the one before)
+    if (forward_pose_it == path_.poses.begin()) {
+      // Edge case: distance is 0 or very small
+      output_pose = *forward_pose_it;
+    } else if (forward_pose_it == path_.poses.end()) {
+      // Edge case: distance extends beyond the path, use the last pose
+      output_pose = path_.poses.back();
+    } else {
+      // Normal case: use the pose just before forward_pose_it
+      output_pose = *(forward_pose_it - 1);
+    }
   } else {
-    // Normal case: use the pose just before forward_pose_it
-    output_pose = *(forward_pose_it - 1);
+    // Note: current_pose + 1 is used because reverse iterator points to a cell before it
+    auto backward_pose_it = nav2_util::geometry_utils::first_after_integrated_distance(
+      std::reverse_iterator(current_pose + 1), path_.poses.rend(), -distance);
+
+    if (backward_pose_it == path_.poses.rend()) {
+      // Edge case: distance extends beyond the start of the path, use the first pose
+      output_pose = path_.poses.front();
+    } else {
+      // Normal case: reverse iterator arithmetic (-1) moves one step toward the physical end,
+      // giving the pose just before the accumulated distance exceeded the target
+      output_pose = *(backward_pose_it - 1);
+    }
   }
 
   // Ensure frame_id is set
