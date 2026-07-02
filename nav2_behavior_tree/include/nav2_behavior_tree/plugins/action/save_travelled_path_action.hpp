@@ -51,9 +51,11 @@ public:
   static BT::PortsList providedPorts()
   {
     return {
-      BT::OutputPort<nav_msgs::msg::Path>(
-        "output_path",
-        "The path covered by the robot over the last max_distance meters"),
+      BT::BidirectionalPort<nav_msgs::msg::Path>(
+        "path",
+        "The path covered by the robot over the last max_distance meters. "
+        "Read on tick to continue an existing trail, then written back. "
+        "Set 0.0 to reset."),
       BT::InputPort<double>(
         "max_distance", 0.0,
         "Length of the recorded backup path behind the robot"),
@@ -91,7 +93,6 @@ private:
   double transform_tolerance_;
   double max_distance_, resolution_;
   std::string global_frame_, robot_frame_;
-  std::vector<geometry_msgs::msg::PoseStamped> previous_poses_;
   rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_publisher_;
 };
 
