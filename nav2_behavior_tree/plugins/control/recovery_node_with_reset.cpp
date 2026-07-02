@@ -26,7 +26,6 @@ RecoveryNodeWithReset::RecoveryNodeWithReset(
   number_of_retries_(1),
   retry_count_(0)
 {
-  getInput("number_of_retries", number_of_retries_);
   getInput("global_frame", global_frame_);
   getInput("robot_frame", robot_frame_);
 
@@ -39,6 +38,8 @@ RecoveryNodeWithReset::RecoveryNodeWithReset(
 
 BT::NodeStatus RecoveryNodeWithReset::tick()
 {
+  // Read the number_of_retries input on every tick in case it is provided as a blackboard variable
+  getInput("number_of_retries", number_of_retries_);
   const unsigned children_count = children_nodes_.size();
 
   if (children_count != 2) {
