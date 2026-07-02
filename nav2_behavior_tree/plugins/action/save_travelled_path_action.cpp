@@ -51,6 +51,14 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
     previous_poses = existing_path.poses;
   }
 
+  // Return immediately if not enough distance was covered
+  if (max_distance_ > 0.0 && !previous_poses.empty() &&
+    nav2_util::geometry_utils::euclidean_distance(current_pose, previous_poses.back()) <
+    resolution_)
+  {
+    return BT::NodeStatus::SUCCESS;
+  }
+
   // Reset: max_distance == 0.0 clears the buffer, keeping only the current pose
   if (max_distance_ <= 0.0) {
     previous_poses.clear();
