@@ -44,16 +44,15 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
   }
 
   // Load the existing trail from the blackboard. Missing/empty entry means
-  // start a fresh trail.
-  std::vector<geometry_msgs::msg::PoseStamped> previous_poses;
-  nav_msgs::msg::Path existing_path;
-  if (getInput("path", existing_path)) {
-    previous_poses = existing_path.poses;
-  }
+  // start a fresh trail. We work directly on `path.poses` to avoid an extra
+  // copy of the pose vector.
+  nav_msgs::msg::Path path;
+  getInput("path", path);
+  auto & poses = path.poses;
 
   // Return immediately if not enough distance was covered
-  if (max_distance_ > 0.0 && !previous_poses.empty() &&
-    nav2_util::geometry_utils::euclidean_distance(current_pose, previous_poses.back()) <
+  if (max_distance_ > 0.0 && !poses.empty() &&
+    nav2_util::geometry_utils::euclidean_distance(current_pose, poses.back()) <
     resolution_)
   {
     return BT::NodeStatus::SUCCESS;
@@ -61,55 +60,52 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
 
   // Reset: max_distance == 0.0 clears the buffer, keeping only the current pose
   if (max_distance_ <= 0.0) {
-    previous_poses.clear();
-    previous_poses.emplace_back(current_pose);
+    poses.clear();
+    poses.emplace_back(current_pose);
   } else {
     // If the robot moved backward along the trail, the closest buffered pose
     // is no longer the last one. In that case, drop every pose after the closest one
     // so the trail stays a monotonic history of poses truly behind the robot.
-    if (previous_poses.size() >= 2) {
-      size_t closest_idx = previous_poses.size() - 1;
+    if (poses.size() >= 2) {
+      size_t closest_idx = poses.size() - 1;
       double closest_dist = nav2_util::geometry_utils::euclidean_distance(
-        current_pose, previous_poses.back());
-      for (size_t i = 0; i + 1 < previous_poses.size(); ++i) {
+        current_pose, poses.back());
+      for (size_t i = 0; i + 1 < poses.size(); ++i) {
         const double d = nav2_util::geometry_utils::euclidean_distance(
-          current_pose, previous_poses[i]);
+          current_pose, poses[i]);
         if (d < closest_dist) {
           closest_dist = d;
           closest_idx = i;
         }
       }
-      if (closest_idx + 1 < previous_poses.size()) {
-        previous_poses.erase(
-          previous_poses.begin() + closest_idx + 1, previous_poses.end());
+      if (closest_idx + 1 < poses.size()) {
+        poses.erase(poses.begin() + closest_idx + 1, poses.end());
       }
     }
 
     // Append current pose if it's far enough from the last recorded one
-    if (previous_poses.empty() ||
-      nav2_util::geometry_utils::euclidean_distance(current_pose, previous_poses.back()) >=
+    if (poses.empty() ||
+      nav2_util::geometry_utils::euclidean_distance(current_pose, poses.back()) >=
       resolution_)
     {
-      previous_poses.emplace_back(current_pose);
+      poses.emplace_back(current_pose);
     }
 
     // Prune from the front any pose that ended up farther than max_distance behind
-    while (!previous_poses.empty() &&
-      nav2_util::geometry_utils::euclidean_distance(current_pose, previous_poses.front()) >
+    while (!poses.empty() &&
+      nav2_util::geometry_utils::euclidean_distance(current_pose, poses.front()) >
       max_distance_)
     {
-      previous_poses.erase(previous_poses.begin());
+      poses.erase(poses.begin());
     }
   }
 
-  // Build output path (front = oldest sample, back = current pose)
-  nav_msgs::msg::Path output_path;
-  output_path.header.frame_id = global_frame_;
-  output_path.header.stamp = node_->now();
-  output_path.poses = previous_poses;
+  // Refresh header (front = oldest sample, back = current pose)
+  path.header.frame_id = global_frame_;
+  path.header.stamp = node_->now();
 
-  setOutput("path", output_path);
-  publishPath(output_path);
+  setOutput("path", path);
+  publishPath(path);
 
   return BT::NodeStatus::SUCCESS;
 }
