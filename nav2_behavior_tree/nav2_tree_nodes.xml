@@ -235,7 +235,7 @@
     </Action>
 
     <Action ID="SaveTravelledPath">
-      <output_port name="path">The path covered by the robot over the last max_distance meters</output_port>
+      <output_port name="path">The path covered by the robot over the last max_distance meters (bidirectional port)</output_port>
       <input_port name="max_distance">Length of the recorded backup path behind the robot</input_port>
       <input_port name="resolution">Minimum spacing between consecutive samples on the backup path</input_port>
       <input_port name="global_frame">Reference frame to check in</input_port>
