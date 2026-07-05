@@ -52,11 +52,11 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
 
   // Distance to the last recorded pose, shared by the checks below
   // (updated if the trail gets truncated after backward motion)
-  double dist_to_last = poses.empty() ? 0.0 :
+  double dist_to_last_saved_pose = poses.empty() ? 0.0 :
     nav2_util::geometry_utils::euclidean_distance(current_pose, poses.back());
 
   // Return immediately if not enough distance was covered
-  if (max_distance_ > 0.0 && !poses.empty() && dist_to_last < resolution_) {
+  if (max_distance_ > 0.0 && !poses.empty() && dist_to_last_saved_pose < resolution_) {
     return BT::NodeStatus::SUCCESS;
   }
 
@@ -70,7 +70,7 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
     // so the trail stays a monotonic history of poses truly behind the robot.
     if (poses.size() >= 2) {
       size_t closest_idx = poses.size() - 1;
-      double closest_dist = dist_to_last;
+      double closest_dist = dist_to_last_saved_pose;
       for (size_t i = 0; i + 1 < poses.size(); ++i) {
         const double d = nav2_util::geometry_utils::euclidean_distance(
           current_pose, poses[i]);
@@ -81,24 +81,24 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
       }
       if (closest_idx + 1 < poses.size()) {
         poses.erase(poses.begin() + closest_idx + 1, poses.end());
-        dist_to_last = closest_dist;
+        dist_to_last_saved_pose = closest_dist;
       }
     }
 
     // Append current pose if it's far enough from the last recorded one
-    if (poses.empty() || dist_to_last >= resolution_) {
+    if (poses.empty() || dist_to_last_saved_pose >= resolution_) {
       poses.emplace_back(current_pose);
     }
 
     // Prune from the front any pose that ended up farther than max_distance behind
-    auto first_kept = poses.begin();
-    while (first_kept != poses.end() &&
-      nav2_util::geometry_utils::euclidean_distance(current_pose, *first_kept) >
+    auto last_pose_within_dist_idx = poses.begin();
+    while (last_pose_within_dist_idx != poses.end() &&
+      nav2_util::geometry_utils::euclidean_distance(current_pose, *last_pose_within_dist_idx) >
       max_distance_)
     {
-      ++first_kept;
+      ++last_pose_within_dist_idx;
     }
-    poses.erase(poses.begin(), first_kept);
+    poses.erase(poses.begin(), last_pose_within_dist_idx);
   }
 
   // Refresh header (front = oldest sample, back = current pose)
