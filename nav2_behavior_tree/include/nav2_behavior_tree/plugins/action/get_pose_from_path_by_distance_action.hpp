@@ -41,7 +41,8 @@ public:
         "output_pose", "Pose at the specified distance from the robot"),
       BT::InputPort<double>(
         "distance", 8.0,
-        "Distance forward along the path from the robot's current position"),
+        "Distance along the path from the robot's current position. "
+        "Positive walks forward along the path; negative walks backward."),
       BT::InputPort<std::string>(
         "robot_frame", "base_link",
         "Robot base frame id"),

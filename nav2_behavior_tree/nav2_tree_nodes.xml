@@ -234,10 +234,10 @@
       <input_port name="server_timeout">Server timeout</input_port>
     </Action>
 
-    <Action ID="GetBackupPose">
-      <output_port name="output_pose">A previous robot pose in a backup_distance behind current position</output_port>
-      <input_port name="backup_distance">Distance of the backup pose behind the robot</input_port>
-      <input_port name="dist_threshold">How often to check for a new backup pose</input_port>
+    <Action ID="SaveTravelledPath">
+      <output_port name="path">The path covered by the robot over the last max_distance meters (bidirectional port)</output_port>
+      <input_port name="max_distance">Length of the recorded backup path behind the robot</input_port>
+      <input_port name="resolution">Minimum spacing between consecutive samples on the backup path</input_port>
       <input_port name="global_frame">Reference frame to check in</input_port>
       <input_port name="robot_frame">Robot frame to check relative to global_frame</input_port>
     </Action>
@@ -245,6 +245,11 @@
     <Action ID="PrintLog">
       <output_port name="string">Text data to print</output_port>
       <input_port name="level">Severity level: DEBUG/INFO/WARN/ERROR</input_port>
+    </Action>
+
+    <Action ID="PublishStringMsg">
+      <input_port name="topic">Topic name to publish the std_msgs/String message to</input_port>
+      <input_port name="message">String data to publish</input_port>
     </Action>
 
     <!-- ############################### CONDITION NODES ############################## -->
