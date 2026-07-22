@@ -26,8 +26,10 @@ namespace nav2_behavior_tree
  * and, effectively, the accuracy with which the tail of the path tracks
  * max_distance.
  *
- * Calling this node with max_distance = 0.0 clears the recorded path
- * (only the current pose remains).
+ * Calling this node with max_distance <= 0.0 clears the recorded path
+ * (only the current pose remains), unless reset_if_moved > 0.0 and the robot
+ * is still within that distance of the last recorded pose, in which case the
+ * existing trail is reused instead of cleared.
  *
  * Returns BT::NodeStatus::SUCCESS unless the current robot pose cannot be
  * obtained (FAILURE).
@@ -62,6 +64,11 @@ public:
       BT::InputPort<double>(
         "resolution", 0.1,
         "Minimum spacing between consecutive samples on the backup path"),
+      BT::InputPort<double>(
+        "reset_if_moved", 0.0,
+        "In reset mode (max_distance <= 0.0), only clear the trail if the robot "
+        "moved more than this many meters from the last recorded pose; otherwise "
+        "reuse the existing trail. 0.0 (default) always clears."),
       BT::InputPort<std::string>(
         "global_frame", std::string("map"), "Global frame"),
       BT::InputPort<std::string>(

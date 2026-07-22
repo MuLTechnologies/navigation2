@@ -238,6 +238,7 @@
       <output_port name="path">The path covered by the robot over the last max_distance meters (bidirectional port)</output_port>
       <input_port name="max_distance">Length of the recorded backup path behind the robot</input_port>
       <input_port name="resolution">Minimum spacing between consecutive samples on the backup path</input_port>
+      <input_port name="reset_if_moved">In reset mode (max_distance &lt;= 0.0), only clear the trail if the robot moved more than this many meters from the last recorded pose; otherwise reuse the existing trail. 0.0 (default) always clears.</input_port>
       <input_port name="global_frame">Reference frame to check in</input_port>
       <input_port name="robot_frame">Robot frame to check relative to global_frame</input_port>
     </Action>
