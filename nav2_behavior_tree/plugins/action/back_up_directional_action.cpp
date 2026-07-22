@@ -33,11 +33,10 @@ BackUpDirectionalAction::BackUpDirectionalAction(
   double time_allowance;
   getInput("time_allowance", time_allowance);
 
-  // Populate the input message
   goal_.target.x = dist;
   goal_.target.y = 0.0;
   goal_.target.z = 0.0;
-  goal_.speed = speed; // The base speed is positive which will ensure regular backup
+  goal_.speed = speed;
   goal_.time_allowance = rclcpp::Duration::from_seconds(time_allowance);
 
   tf_buffer_ =
@@ -50,22 +49,33 @@ BackUpDirectionalAction::BackUpDirectionalAction(
 void BackUpDirectionalAction::on_tick()
 {
   nav_msgs::msg::Path path;
-  getInput("truncated_path", path);
+  getInput("travelled_path", path);
 
-  geometry_msgs::msg::PoseStamped reference_pose = path.poses.back();
+  // BackUp negates goal_.speed before driving (linear.x = -goal_.speed), so a
+  // positive goal_.speed drives -x (reverse) and a negative one drives +x.
+  const double speed_mag = std::fabs(goal_.speed);
+
+  if (path.poses.empty()) {
+    RCLCPP_WARN(node_->get_logger(), "[BackUpDirectionalAction] Empty path; failing.");
+    should_send_goal_ = false;
+    return;
+  }
+
+  // Reference is the far (oldest) end of the trail: the point behind the robot.
+  geometry_msgs::msg::PoseStamped reference_pose = path.poses.front();
   reference_pose.header.frame_id = path.header.frame_id;
-  // Using time now as here we take the global plan as input which often is a few seconds old and throws an error on timestamp
+  // Freshly stamp so the tf lookup below does not trip the timestamp tolerance.
   reference_pose.header.stamp = node_->now();
 
   geometry_msgs::msg::PoseStamped transformed_pose;
 
   nav2_util::transformPoseInTargetFrame(reference_pose, transformed_pose, *tf_buffer_, "base_link", 1.0);
 
-  if (transformed_pose.pose.position.x >= 0) {
-    goal_.speed = std::fabs(goal_.speed);
-  } else {
-    goal_.speed = -std::fabs(goal_.speed);
-  }
+  const double ref_x = transformed_pose.pose.position.x;
+
+  // Back up TOWARD the reference behind the robot. goal_.speed > 0 => reverse,
+  // < 0 => forward (see note above).
+  goal_.speed = (ref_x >= 0.0) ? -speed_mag : speed_mag;
 
   RCLCPP_INFO_STREAM(node_->get_logger(), "[BackUpDirectionalAction] Speed: " << goal_.speed);
 
