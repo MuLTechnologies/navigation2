@@ -26,7 +26,7 @@ namespace nav2_behavior_tree
  * and, effectively, the accuracy with which the tail of the path tracks
  * max_distance.
  *
- * Calling this node with max_distance = 0.0 clears the recorded path
+ * Calling this node with max_distance <= 0.0 clears the recorded path
  * (only the current pose remains), unless reset_if_moved > 0.0 and the robot
  * is still within that distance of the last recorded pose, in which case the
  * existing trail is reused instead of cleared.
