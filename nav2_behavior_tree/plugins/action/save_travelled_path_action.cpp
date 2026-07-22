@@ -60,8 +60,18 @@ inline BT::NodeStatus SaveTravelledPathAction::tick()
     return BT::NodeStatus::SUCCESS;
   }
 
-  // Reset: max_distance == 0.0 clears the buffer, keeping only the current pose
+  // Reset: max_distance <= 0.0 clears the buffer, keeping only the current pose.
+  // If reset_if_moved > 0.0, keep the existing trail when the robot is still
+  // within that distance of the last recorded pose (e.g. a new goal issued from
+  // roughly the same spot), so the accumulated backup path is not thrown away.
   if (max_distance_ <= 0.0) {
+    double reset_if_moved = 0.0;
+    getInput("reset_if_moved", reset_if_moved);
+    if (reset_if_moved > 0.0 && !poses.empty() &&
+      dist_to_last_saved_pose <= reset_if_moved)
+    {
+      return BT::NodeStatus::SUCCESS;
+    }
     poses.clear();
     poses.emplace_back(current_pose);
   } else {
