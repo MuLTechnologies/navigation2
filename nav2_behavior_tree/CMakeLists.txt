@@ -229,6 +229,9 @@ list(APPEND plugin_libs nav2_goal_updated_controller_bt_node)
 add_library(nav2_is_pose_away_condition_bt_node SHARED plugins/condition/is_pose_away_condition.cpp)
 list(APPEND plugin_libs nav2_is_pose_away_condition_bt_node)
 
+add_library(nav2_is_blackboard_true_condition_bt_node SHARED plugins/condition/is_blackboard_true_condition.cpp)
+list(APPEND plugin_libs nav2_is_blackboard_true_condition_bt_node)
+
 add_library(nav2_print_log_bt_node SHARED plugins/action/print_log_node.cpp)
 list(APPEND plugin_libs nav2_print_log_bt_node)
 

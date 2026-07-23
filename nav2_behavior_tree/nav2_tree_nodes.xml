@@ -314,6 +314,10 @@
       <input_port name="distance">Distance threshold </input_port>
     </Condition>
 
+    <Condition ID="IsBlackboardTrue">
+      <input_port name="value">Blackboard boolean value to check</input_port>
+    </Condition>
+
     <!-- ############################### CONTROL NODES ################################ -->
     <Control ID="PipelineSequence"/>
 
