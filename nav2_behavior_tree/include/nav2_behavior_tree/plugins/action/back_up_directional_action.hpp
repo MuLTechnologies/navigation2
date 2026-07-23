@@ -60,7 +60,7 @@ public:
         BT::InputPort<double>("backup_dist", 0.15, "Distance to backup"),
         BT::InputPort<double>("backup_speed", 0.025, "Speed at which to backup"),
         BT::InputPort<double>("time_allowance", 10.0, "Allowed time for reversing"),
-        BT::InputPort<nav_msgs::msg::Path>("truncated_path", "Truncated local path which should be shortened to the desired search distance")
+        BT::InputPort<nav_msgs::msg::Path>("travelled_path", "Travelled path (behind the robot) whose far end sets the backup direction")
       });
   }
 private:
