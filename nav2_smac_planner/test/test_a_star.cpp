@@ -17,6 +17,7 @@
 #include <string>
 #include <vector>
 #include <limits>
+#include <thread>
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
@@ -28,6 +29,8 @@
 #include "nav2_smac_planner/a_star.hpp"
 #include "nav2_smac_planner/collision_checker.hpp"
 #include "ament_index_cpp/get_package_share_directory.hpp"
+#include "ompl/base/ScopedState.h"
+#include "ompl/base/spaces/ReedsSheppStateSpace.h"
 
 TEST(AStarTest, test_a_star_2d)
 {
@@ -568,6 +571,72 @@ TEST(AStarTest, test_constants)
       "ALL_DIRECTION"), nav2_smac_planner::GoalHeadingMode::ALL_DIRECTION);
   EXPECT_EQ(
     nav2_smac_planner::fromStringToGH("NONE"), nav2_smac_planner::GoalHeadingMode::UNKNOWN);
+}
+
+// Planners are configured on one thread and plan on fresh action-server threads; each
+// planner must see its own distance lookup table there, sized and built for its radius
+TEST(AStarTest, test_a_star_hybrid_distance_lookup_per_planner_and_thread)
+{
+  auto lnode = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
+  unsigned int size_theta = 72;
+  int max_iterations = 10000;
+  int it_on_approach = 10;
+  int terminal_checking_interval = 5000;
+  const float lookup_dim = 41;
+
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  *costmap_ros->getCostmap() = nav2_costmap_2d::Costmap2D(100, 100, 0.1, 0.0, 0.0, 0);
+  auto checker =
+    std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, size_theta, lnode);
+  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+
+  auto make_a_star = [&](float radius) {
+      nav2_smac_planner::SearchInfo info;
+      info.minimum_turning_radius = radius;  // in grid coordinates
+      auto a_star = std::make_unique<nav2_smac_planner::AStarAlgorithm<
+            nav2_smac_planner::NodeHybrid>>(nav2_smac_planner::MotionModel::REEDS_SHEPP, info);
+      a_star->initialize(
+        false, max_iterations, it_on_approach, terminal_checking_interval, 120.0,
+        lookup_dim, size_theta);
+      return a_star;
+    };
+  auto a_star_tight = make_a_star(4.0);
+  auto a_star_wide = make_a_star(8.0);
+
+  const nav2_smac_planner::NodeHybrid::Coordinates goal(50.0, 50.0, 0.0);
+  const nav2_smac_planner::NodeHybrid::Coordinates node(53.0, 52.0, 10.0);
+  auto expected = [&](float radius) {
+      auto space = std::make_shared<ompl::base::ReedsSheppStateSpace>(radius);
+      ompl::base::ScopedState<> from(space), to(space);
+      from[0] = 3.0;
+      from[1] = 2.0;
+      from[2] = 10.0 * 2.0 * M_PI / size_theta;
+      to[0] = 0.0;
+      to[1] = 0.0;
+      to[2] = 0.0;
+      return space->distance(from(), to());
+    };
+
+  auto lookup_on_fresh_thread = [&](auto & a_star, float & at_goal, float & at_node) {
+      std::thread([&]() {
+          a_star.setCollisionChecker(checker.get());
+          at_goal = nav2_smac_planner::NodeHybrid::getDistanceHeuristic(goal, goal, 1.0);
+          at_node = nav2_smac_planner::NodeHybrid::getDistanceHeuristic(node, goal, 1.0);
+        }).join();
+    };
+
+  float at_goal, at_node;
+  lookup_on_fresh_thread(*a_star_tight, at_goal, at_node);
+  EXPECT_NEAR(at_goal, 0.0, 1e-3);
+  EXPECT_NEAR(at_node, expected(4.0), 1e-3);
+
+  lookup_on_fresh_thread(*a_star_wide, at_goal, at_node);
+  EXPECT_NEAR(at_goal, 0.0, 1e-3);
+  EXPECT_NEAR(at_node, expected(8.0), 1e-3);
+  EXPECT_GT(expected(8.0), expected(4.0));
+
+  nav2_smac_planner::NodeHybrid::destroyStaticAssets();
 }
 
 int main(int argc, char **argv)
