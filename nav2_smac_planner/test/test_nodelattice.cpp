@@ -388,6 +388,78 @@ TEST(NodeLatticeTest, test_node_lattice_custom_footprint)
   delete costmap;
 }
 
+TEST(NodeLatticeTest, test_cusp_penalty)
+{
+  auto lnode = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
+  std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("nav2_smac_planner");
+  std::string filePath =
+    pkg_share_dir + "/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json";
+
+  nav2_smac_planner::SearchInfo info;
+  info.non_straight_penalty = 1;
+  info.change_penalty = 0;
+  info.reverse_penalty = 1;
+  info.cost_penalty = 1;
+  info.retrospective_penalty = 0.0;
+  info.lattice_filepath = filePath;
+  info.allow_reverse_expansion = true;
+  unsigned int x = 100, y = 100, angle_quantization = 16;
+  nav2_smac_planner::NodeLattice::initMotionModel(
+    nav2_smac_planner::MotionModel::STATE_LATTICE, x, y, angle_quantization, info);
+  // Set directly: the motion table is only loaded once per lattice file and thread
+  nav2_smac_planner::NodeLattice::motion_table.cusp_penalty = 20.0f;
+
+  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(10, 10, 0.05, 0.0, 0.0, 0);
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  *costmap_ros->getCostmap() = *costmapA;
+  auto checker = std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, lnode);
+  checker->setFootprint(nav2_costmap_2d::Footprint(), true, 0.0);
+
+  // Straight forward, straight reverse and in-place rotation primitives from heading 0
+  nav2_smac_planner::NodeLattice parent(1);
+  parent.pose = nav2_smac_planner::NodeLattice::Coordinates(5, 5, 0);
+  unsigned int direction_change_index = 0;
+  auto prims = nav2_smac_planner::NodeLattice::motion_table.getMotionPrimitives(
+    &parent, direction_change_index);
+  nav2_smac_planner::MotionPrimitive * fwd = nullptr, * rev = nullptr, * rot = nullptr;
+  for (unsigned int i = 0; i != prims.size(); i++) {
+    const bool straight = prims[i]->arc_length < 0.001 && prims[i]->trajectory_length > 1e-4;
+    if (i < direction_change_index && straight && !fwd) {fwd = prims[i];}
+    if (i >= direction_change_index && straight && !rev) {rev = prims[i];}
+    if (prims[i]->trajectory_length < 1e-4 && !rot) {rot = prims[i];}
+  }
+  ASSERT_NE(fwd, nullptr);
+  ASSERT_NE(rev, nullptr);
+  ASSERT_NE(rot, nullptr);
+  parent.setMotionPrimitive(fwd);
+
+  nav2_smac_planner::NodeLattice child(2);
+  child.pose = nav2_smac_planner::NodeLattice::Coordinates(5, 5, 0);
+  ASSERT_TRUE(child.isNodeValid(true, checker.get()));
+  child.setMotionPrimitive(rev);
+  child.backwards(true);
+
+  // Reversing after driving forward pays the penalty once; same direction or unknown does not
+  parent.setDriveDirection(0);
+  const float with_cusp = parent.getTraversalCost(&child);
+  parent.setDriveDirection(1);
+  const float same_dir = parent.getTraversalCost(&child);
+  EXPECT_NEAR(with_cusp - same_dir, 20.0f, 1e-3);
+  parent.setDriveDirection(-1);
+  EXPECT_NEAR(parent.getTraversalCost(&child), same_dir, 1e-3);
+
+  // In-place rotations are never a cusp themselves
+  child.setMotionPrimitive(rot);
+  parent.setDriveDirection(0);
+  const float rot_after_fwd = parent.getTraversalCost(&child);
+  parent.setDriveDirection(1);
+  EXPECT_NEAR(parent.getTraversalCost(&child), rot_after_fwd, 1e-3);
+
+  nav2_smac_planner::NodeLattice::motion_table.cusp_penalty = 0.0f;
+  delete costmapA;
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

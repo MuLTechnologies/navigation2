@@ -38,6 +38,7 @@ struct SearchInfo
   float non_straight_penalty{1.05};
   float change_penalty{0.0};
   float reverse_penalty{2.0};
+  float cusp_penalty{0.0};  // Added per forward/reverse switch, in grid cells of travel
   float cost_penalty{2.0};
   float retrospective_penalty{0.015};
   float rotation_penalty{5.0};
@@ -120,6 +121,12 @@ enum class TurnDirection
   REV_LEFT = 5,
   REV_RIGHT = 6
 };
+
+inline bool isReverse(const TurnDirection & turn_dir)
+{
+  return turn_dir == TurnDirection::REVERSE || turn_dir == TurnDirection::REV_LEFT ||
+         turn_dir == TurnDirection::REV_RIGHT;
+}
 
 /**
  * @struct nav2_smac_planner::MotionPose

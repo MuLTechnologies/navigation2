@@ -104,6 +104,19 @@ TEST(NodeHybridTest, test_node_hybrid)
   testA.setMotionPrimitiveIndex(2, nav2_smac_planner::TurnDirection::REV_LEFT);
   EXPECT_NEAR(testB.getTraversalCost(&testA), 2.513f * 0.9 * 2.0, 0.01);
 
+  // cusp penalty is added on a forward/reverse switch only
+  info.cusp_penalty = 3.0;
+  nav2_smac_planner::NodeHybrid::initMotionModel(
+    nav2_smac_planner::MotionModel::DUBIN, size_x, size_y, size_theta, info);
+  EXPECT_NEAR(testB.getTraversalCost(&testA), 2.513f * 0.9 * 2.0 + 3.0, 0.01);
+  testB.setMotionPrimitiveIndex(2, nav2_smac_planner::TurnDirection::REV_LEFT);
+  // same turn direction: non_straight_penalty (1.1) instead of non_straight + change (1.2)
+  EXPECT_NEAR(testB.getTraversalCost(&testA), 2.513f / 1.2 * 1.1 * 0.9 * 2.0, 0.01);
+  testB.setMotionPrimitiveIndex(1, nav2_smac_planner::TurnDirection::LEFT);
+  info.cusp_penalty = 0.0;
+  nav2_smac_planner::NodeHybrid::initMotionModel(
+    nav2_smac_planner::MotionModel::DUBIN, size_x, size_y, size_theta, info);
+
   // will throw because never collision checked testB
   EXPECT_THROW(testA.getTraversalCost(&testB), std::runtime_error);
 

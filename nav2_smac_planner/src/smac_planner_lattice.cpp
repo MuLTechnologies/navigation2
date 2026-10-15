@@ -99,6 +99,11 @@ void SmacPlannerLattice::configure(
     node, name + ".change_penalty", rclcpp::ParameterValue(0.05));
   node->get_parameter(name + ".change_penalty", _search_info.change_penalty);
   nav2_util::declare_parameter_if_not_declared(
+    node, name + ".cusp_penalty", rclcpp::ParameterValue(0.0));
+  double cusp_penalty_m;
+  node->get_parameter(name + ".cusp_penalty", cusp_penalty_m);
+  _search_info.cusp_penalty = cusp_penalty_m / _costmap->getResolution();
+  nav2_util::declare_parameter_if_not_declared(
     node, name + ".non_straight_penalty", rclcpp::ParameterValue(1.05));
   node->get_parameter(name + ".non_straight_penalty", _search_info.non_straight_penalty);
   nav2_util::declare_parameter_if_not_declared(
@@ -563,6 +568,10 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
       } else if (param_name == _name + ".change_penalty") {
         reinit_a_star = true;
         _search_info.change_penalty = static_cast<float>(parameter.as_double());
+      } else if (param_name == _name + ".cusp_penalty") {
+        reinit_a_star = true;
+        _search_info.cusp_penalty =
+          static_cast<float>(parameter.as_double()) / _costmap->getResolution();
       } else if (param_name == _name + ".non_straight_penalty") {
         reinit_a_star = true;
         _search_info.non_straight_penalty = static_cast<float>(parameter.as_double());

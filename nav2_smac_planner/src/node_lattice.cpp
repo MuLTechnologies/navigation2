@@ -60,6 +60,7 @@ void LatticeMotionTable::initMotionModel(
   non_straight_penalty = search_info.non_straight_penalty;
   cost_penalty = search_info.cost_penalty;
   reverse_penalty = search_info.reverse_penalty;
+  cusp_penalty = search_info.cusp_penalty;
   travel_distance_reward = 1.0f - search_info.retrospective_penalty;
   current_lattice_filepath = search_info.lattice_filepath;
   allow_reverse_expansion = search_info.allow_reverse_expansion;
@@ -194,6 +195,7 @@ NodeLattice::NodeLattice(const uint64_t index)
   _was_visited(false),
   _motion_primitive(nullptr),
   _backwards(false),
+  _drive_dir(-1),
   _is_node_valid(false)
 {
 }
@@ -214,6 +216,7 @@ void NodeLattice::reset()
   pose.theta = 0.0f;
   _motion_primitive = nullptr;
   _backwards = false;
+  _drive_dir = -1;
   _is_node_valid = false;
 }
 
@@ -337,6 +340,11 @@ float NodeLattice::getTraversalCost(const NodePtr & child)
   if (child->isBackward()) {
     // reverse direction
     travel_cost *= motion_table.reverse_penalty;
+  }
+
+  // Forward/reverse switch since the last translating move (in-place rotations don't reset it)
+  if (getDriveDirection() >= 0 && getDriveDirection() != (child->isBackward() ? 1 : 0)) {
+    travel_cost += motion_table.cusp_penalty;
   }
 
   return travel_cost;
@@ -558,6 +566,10 @@ void NodeLattice::getNeighbors(
         neighbor->setMotionPrimitive(motion_primitives[i]);
         // Marking if this search was obtained in the reverse direction
         neighbor->backwards(backwards);
+        // Rotations keep the drive direction of the last translating move
+        neighbor->setDriveDirection(
+          motion_primitives[i]->trajectory_length < 1e-4 ? getDriveDirection() :
+          static_cast<int8_t>(backwards ? 1 : 0));
         neighbors.push_back(neighbor);
       } else {
         neighbor->setPose(initial_node_coords);

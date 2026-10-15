@@ -13,6 +13,8 @@
 // limitations under the License. Reserved.
 
 #include <algorithm>
+#include <limits>
+#include <type_traits>
 #include <vector>
 #include <memory>
 
@@ -184,7 +186,29 @@ typename AnalyticExpansion<NodeT>::AnalyticExpansionNodes AnalyticExpansion<Node
   auto rs_state_space = dynamic_cast<ompl::base::ReedsSheppStateSpace *>(state_space.get());
   int direction_changes = 0;
   if (rs_state_space) {
-    direction_changes = countDirectionChanges(rs_state_space->reedsShepp(from.get(), to.get()));
+    const auto rs_path = rs_state_space->reedsShepp(from.get(), to.get());
+    direction_changes = countDirectionChanges(rs_path);
+    if constexpr (std::is_same_v<NodeT, NodeHybrid>) {
+      // Also count a switch between the search's last primitive and the expansion's first segment
+      const double * lengths = rs_path.length_;
+      const double * first = std::find_if(
+        lengths, lengths + 5, [](const double & l) {return l != 0.0;});
+      if (node->getMotionPrimitiveIndex() != std::numeric_limits<unsigned int>::max() &&
+        first != lengths + 5 && (*first < 0.0) != isReverse(node->getTurnDirection()))
+      {
+        ++direction_changes;
+      }
+    } else if constexpr (std::is_same_v<NodeT, NodeLattice>) {
+      // Same for lattice nodes, using the last translating move's direction
+      const double * lengths = rs_path.length_;
+      const double * first = std::find_if(
+        lengths, lengths + 5, [](const double & l) {return l != 0.0;});
+      if (node->getDriveDirection() >= 0 && first != lengths + 5 &&
+        (*first < 0.0) != (node->getDriveDirection() == 1))
+      {
+        ++direction_changes;
+      }
+    }
   }
 
   // A move of sqrt(2) is guaranteed to be in a new cell
@@ -359,7 +383,7 @@ float AnalyticExpansion<NodeT>::refineAnalyticPath(
         // Search's Traversal Cost Function
         score += distance * (1.0 + weight * normalized_cost);
       }
-      return score;
+      return score + expansion.direction_changes * _search_info.cusp_penalty;
     };
 
   float original_score = scoringFn(analytic_nodes);

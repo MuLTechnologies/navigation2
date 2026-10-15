@@ -131,6 +131,7 @@ struct HybridMotionTable
   float non_straight_penalty;
   float cost_penalty;
   float reverse_penalty;
+  float cusp_penalty;
   float travel_distance_reward;
   bool downsample_obstacle_heuristic;
   bool use_quadratic_cost_penalty;

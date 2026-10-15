@@ -110,6 +110,7 @@ struct LatticeMotionTable
   float non_straight_penalty;
   float cost_penalty;
   float reverse_penalty;
+  float cusp_penalty;
   float travel_distance_reward;
   float rotation_penalty;
   float min_turning_radius;
@@ -256,6 +257,24 @@ public:
   inline bool isBackward()
   {
     return _backwards;
+  }
+
+  /**
+   * @brief Sets the drive direction of the last translating move up to this node
+   * @param dir -1 unknown (no translation yet), 0 forward, 1 reverse
+   */
+  inline void setDriveDirection(const int8_t dir)
+  {
+    _drive_dir = dir;
+  }
+
+  /**
+   * @brief Gets the drive direction of the last translating move; rotations inherit it
+   * @return -1 unknown, 0 forward, 1 reverse
+   */
+  inline int8_t getDriveDirection() const
+  {
+    return _drive_dir;
   }
 
   /**
@@ -451,6 +470,7 @@ private:
   bool _was_visited;
   MotionPrimitive * _motion_primitive;
   bool _backwards;
+  int8_t _drive_dir;
   bool _is_node_valid{false};
 };
 
