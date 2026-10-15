@@ -36,8 +36,8 @@ namespace nav2_smac_planner
 
 // defining static member for all instance to share
 thread_local LatticeMotionTable NodeLattice::motion_table;
-thread_local float NodeLattice::size_lookup = 25;
-thread_local LookupTable NodeLattice::dist_heuristic_lookup_table;
+thread_local float NodeLattice::size_lookup = 0;
+thread_local const LookupTable * NodeLattice::dist_heuristic_lookup_table = nullptr;
 
 // Each of these tables are the projected motion models through
 // time and space applied to the search on the current node in
@@ -413,7 +413,9 @@ float NodeLattice::getDistanceHeuristic(
   const int floored_size = floor(size_lookup / 2.0);
   const int ceiling_size = ceil(size_lookup / 2.0);
   const float mirrored_relative_y = abs(node_coords_relative.y);
-  if (abs(node_coords_relative.x) < floored_size && mirrored_relative_y < floored_size) {
+  if (dist_heuristic_lookup_table &&
+    abs(node_coords_relative.x) < floored_size && mirrored_relative_y < floored_size)
+  {
     // Need to mirror angle if Y coordinate was mirrored
     int theta_pos;
     if (node_coords_relative.y < 0.0) {
@@ -427,7 +429,7 @@ float NodeLattice::getDistanceHeuristic(
       x_pos * ceiling_size * motion_table.num_angle_quantization +
       y_pos * motion_table.num_angle_quantization +
       theta_pos;
-    motion_heuristic = dist_heuristic_lookup_table[index];
+    motion_heuristic = (*dist_heuristic_lookup_table)[index];
   } else if (obstacle_heuristic == 0.0) {
     thread_local ompl::base::ScopedState<> from(motion_table.state_space), to(motion_table.state_space);
     to[0] = goal_coords.x;
@@ -446,7 +448,8 @@ void NodeLattice::precomputeDistanceHeuristic(
   const float & lookup_table_dim,
   const MotionModel & /*motion_model*/,
   const unsigned int & dim_3_size,
-  const SearchInfo & search_info)
+  const SearchInfo & search_info,
+  LookupTable & lookup_table)
 {
   // Dubin or Reeds-Shepp shortest distances
   if (!search_info.allow_reverse_expansion) {
@@ -465,7 +468,7 @@ void NodeLattice::precomputeDistanceHeuristic(
   to[0] = 0.0;
   to[1] = 0.0;
   to[2] = 0.0;
-  size_lookup = lookup_table_dim;
+  const float lookup_dim = lookup_table_dim;
   float motion_heuristic = 0.0;
   unsigned int index = 0;
   int dim_3_size_int = static_cast<int>(dim_3_size);
@@ -475,15 +478,15 @@ void NodeLattice::precomputeDistanceHeuristic(
   // Heuristic space, we need to only store 2 of the 4 quadrants and simply mirror
   // around the X axis any relative node lookup. This reduces memory overhead and increases
   // the size of a window a platform can store in memory.
-  dist_heuristic_lookup_table.resize(size_lookup * ceil(size_lookup / 2.0) * dim_3_size_int);
-  for (float x = ceil(-size_lookup / 2.0); x <= floor(size_lookup / 2.0); x += 1.0) {
-    for (float y = 0.0; y <= floor(size_lookup / 2.0); y += 1.0) {
+  lookup_table.resize(lookup_dim * ceil(lookup_dim / 2.0) * dim_3_size_int);
+  for (float x = ceil(-lookup_dim / 2.0); x <= floor(lookup_dim / 2.0); x += 1.0) {
+    for (float y = 0.0; y <= floor(lookup_dim / 2.0); y += 1.0) {
       for (int heading = 0; heading != dim_3_size_int; heading++) {
         from[0] = x;
         from[1] = y;
         from[2] = motion_table.getAngleFromBin(heading);
         motion_heuristic = motion_table.state_space->distance(from(), to());
-        dist_heuristic_lookup_table[index] = motion_heuristic;
+        lookup_table[index] = motion_heuristic;
         index++;
       }
     }
