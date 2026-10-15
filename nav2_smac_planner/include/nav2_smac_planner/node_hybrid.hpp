@@ -280,6 +280,15 @@ public:
   }
 
   /**
+   * @brief Gets the cost used for traversal scoring (same as getCost for Hybrid)
+   * @return score cost
+   */
+  inline float getScoreCost()
+  {
+    return _cell_cost;
+  }
+
+  /**
    * @brief Gets if cell has been visited in search
    * @param If cell was visited
    */

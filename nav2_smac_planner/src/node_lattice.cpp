@@ -61,6 +61,7 @@ void LatticeMotionTable::initMotionModel(
   cost_penalty = search_info.cost_penalty;
   reverse_penalty = search_info.reverse_penalty;
   cusp_penalty = search_info.cusp_penalty;
+  footprint_score_mode = search_info.footprint_score_mode;
   travel_distance_reward = 1.0f - search_info.retrospective_penalty;
   current_lattice_filepath = search_info.lattice_filepath;
   allow_reverse_expansion = search_info.allow_reverse_expansion;
@@ -190,6 +191,7 @@ NodeLattice::NodeLattice(const uint64_t index)
 : parent(nullptr),
   pose(0.0f, 0.0f, 0.0f),
   _cell_cost(std::numeric_limits<float>::quiet_NaN()),
+  _score_cost(std::numeric_limits<float>::quiet_NaN()),
   _accumulated_cost(std::numeric_limits<float>::max()),
   _index(index),
   _was_visited(false),
@@ -209,6 +211,7 @@ void NodeLattice::reset()
 {
   parent = nullptr;
   _cell_cost = std::numeric_limits<float>::quiet_NaN();
+  _score_cost = std::numeric_limits<float>::quiet_NaN();
   _accumulated_cost = std::numeric_limits<float>::max();
   _was_visited = false;
   pose.x = 0.0f;
@@ -240,11 +243,28 @@ bool NodeLattice::isNodeValid(
   {
     _is_node_valid = false;
     _cell_cost = collision_checker->getCost();
+    _score_cost = _cell_cost;
     return false;
   }
 
+  // Score the pose last collision-checked, per footprint_score_mode
+  auto scorePose = [&](const float & x, const float & y, const float & bin) {
+      if (motion_table.footprint_score_mode == FootprintScoreMode::CENTER) {
+        return collision_checker->getCost();
+      }
+      if (motion_table.footprint_score_mode == FootprintScoreMode::POINTS_MAX) {
+        // Exact outline max when inCollision() just rasterized this pose's footprint (near
+        // obstacles); the samples alone miss contacts between points on the long sides
+        return std::max(
+          collision_checker->scoreFootprint(x, y, bin, true),
+          collision_checker->getFootprintCost());
+      }
+      return collision_checker->scoreFootprint(x, y, bin, false);
+    };
+
   // Set the cost of a node to the highest cost across the primitive
   float max_cell_cost = collision_checker->getCost();
+  float max_score_cost = scorePose(this->pose.x, this->pose.y, angle);
 
   // If valid motion primitives are set, check intermediary poses > 1 cell apart
   if (motion_primitive) {
@@ -283,21 +303,26 @@ bool NodeLattice::isNodeValid(
         {
           _is_node_valid = false;
           _cell_cost = std::max(max_cell_cost, collision_checker->getCost());
+          _score_cost = _cell_cost;
           return false;
         }
         max_cell_cost = std::max(max_cell_cost, collision_checker->getCost());
+        max_score_cost = std::max(
+          max_score_cost,
+          scorePose(prim_pose._x, prim_pose._y, prim_pose._theta / bin_size));
       }
     }
   }
 
   _cell_cost = max_cell_cost;
+  _score_cost = max_score_cost;
   _is_node_valid = true;
   return _is_node_valid;
 }
 
 float NodeLattice::getTraversalCost(const NodePtr & child)
 {
-  const float normalized_cost = child->getCost() / 252.0;
+  const float normalized_cost = child->getScoreCost() / 252.0;
   if (std::isnan(normalized_cost)) {
     throw std::runtime_error(
             "Node attempted to get traversal "

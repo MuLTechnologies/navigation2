@@ -460,6 +460,90 @@ TEST(NodeLatticeTest, test_cusp_penalty)
   delete costmapA;
 }
 
+TEST(NodeLatticeTest, test_footprint_score_mode)
+{
+  auto lnode = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
+  std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("nav2_smac_planner");
+  std::string filePath =
+    pkg_share_dir + "/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json";
+
+  nav2_smac_planner::SearchInfo info;
+  info.non_straight_penalty = 1;
+  info.change_penalty = 0;
+  info.reverse_penalty = 1;
+  info.cost_penalty = 1;
+  info.retrospective_penalty = 0.0;
+  info.lattice_filepath = filePath;
+  info.allow_reverse_expansion = true;
+  unsigned int x = 100, y = 100, angle_quantization = 16;
+  nav2_smac_planner::NodeLattice::initMotionModel(
+    nav2_smac_planner::MotionModel::STATE_LATTICE, x, y, angle_quantization, info);
+
+  // Footprint x in [-0.5, 0.1], y in [-0.15, 0.15]; at (20, 20) heading 0 the
+  // rear-left corner is cell (10, 23)
+  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(40, 40, 0.05, 0.0, 0.0, 0);
+  costmapA->setCost(10, 23, 90);
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  *costmap_ros->getCostmap() = *costmapA;
+  auto checker = std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, 72, lnode);
+  nav2_costmap_2d::Footprint footprint;
+  geometry_msgs::msg::Point p;
+  p.x = 0.1;
+  p.y = 0.15;
+  footprint.push_back(p);
+  p.y = -0.15;
+  footprint.push_back(p);
+  p.x = -0.5;
+  footprint.push_back(p);
+  p.y = 0.15;
+  footprint.push_back(p);
+  checker->setFootprint(footprint, false, 0.0);
+
+  // Set directly: the motion table is only loaded once per lattice file and thread
+  auto & mode = nav2_smac_planner::NodeLattice::motion_table.footprint_score_mode;
+
+  mode = nav2_smac_planner::FootprintScoreMode::CENTER;
+  nav2_smac_planner::NodeLattice center(1);
+  center.pose = nav2_smac_planner::NodeLattice::Coordinates(20, 20, 0);
+  ASSERT_TRUE(center.isNodeValid(true, checker.get()));
+  EXPECT_NEAR(center.getCost(), 0.0, 1e-3);
+  EXPECT_NEAR(center.getScoreCost(), 0.0, 1e-3);
+
+  // Scoring changes, the collision cost does not: 9 samples, one at 90
+  mode = nav2_smac_planner::FootprintScoreMode::POINTS_MEAN;
+  nav2_smac_planner::NodeLattice mean(2);
+  mean.pose = nav2_smac_planner::NodeLattice::Coordinates(20, 20, 0);
+  ASSERT_TRUE(mean.isNodeValid(true, checker.get()));
+  EXPECT_NEAR(mean.getCost(), 0.0, 1e-3);
+  EXPECT_NEAR(mean.getScoreCost(), 10.0, 1e-3);
+
+  mode = nav2_smac_planner::FootprintScoreMode::POINTS_MAX;
+  nav2_smac_planner::NodeLattice max(3);
+  max.pose = nav2_smac_planner::NodeLattice::Coordinates(20, 20, 0);
+  ASSERT_TRUE(max.isNodeValid(true, checker.get()));
+  EXPECT_NEAR(max.getScoreCost(), 90.0, 1e-3);
+
+  // Traversal cost uses the score
+  nav2_smac_planner::NodeLattice parent(4);
+  parent.pose = nav2_smac_planner::NodeLattice::Coordinates(20, 20, 0);
+  unsigned int direction_change_index = 0;
+  auto prims = nav2_smac_planner::NodeLattice::motion_table.getMotionPrimitives(
+    &parent, direction_change_index);
+  nav2_smac_planner::MotionPrimitive * fwd = nullptr;
+  for (unsigned int i = 0; i != direction_change_index && !fwd; i++) {
+    if (prims[i]->arc_length < 0.001 && prims[i]->trajectory_length > 1e-4) {fwd = prims[i];}
+  }
+  ASSERT_NE(fwd, nullptr);
+  parent.setMotionPrimitive(fwd);
+  center.setMotionPrimitive(fwd);
+  mean.setMotionPrimitive(fwd);
+  EXPECT_GT(parent.getTraversalCost(&mean), parent.getTraversalCost(&center));
+
+  mode = nav2_smac_planner::FootprintScoreMode::CENTER;
+  delete costmapA;
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

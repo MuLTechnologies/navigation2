@@ -36,6 +36,15 @@ enum class GoalHeadingMode
   ALL_DIRECTION = 3,
 };
 
+// How a pose's traversal cost is scored: axle cell only, or sample points around the footprint
+enum class FootprintScoreMode
+{
+  UNKNOWN = 0,
+  CENTER = 1,
+  POINTS_MEAN = 2,
+  POINTS_MAX = 3,
+};
+
 inline std::string toString(const MotionModel & n)
 {
   switch (n) {
@@ -91,6 +100,19 @@ inline GoalHeadingMode fromStringToGH(const std::string & n)
     return GoalHeadingMode::ALL_DIRECTION;
   } else {
     return GoalHeadingMode::UNKNOWN;
+  }
+}
+
+inline FootprintScoreMode fromStringToFSM(const std::string & n)
+{
+  if (n == "CENTER") {
+    return FootprintScoreMode::CENTER;
+  } else if (n == "POINTS_MEAN") {
+    return FootprintScoreMode::POINTS_MEAN;
+  } else if (n == "POINTS_MAX") {
+    return FootprintScoreMode::POINTS_MAX;
+  } else {
+    return FootprintScoreMode::UNKNOWN;
   }
 }
 

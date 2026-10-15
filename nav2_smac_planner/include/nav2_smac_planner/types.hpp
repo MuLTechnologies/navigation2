@@ -22,6 +22,7 @@
 
 #include "rclcpp_lifecycle/lifecycle_node.hpp"
 #include "nav2_util/node_utils.hpp"
+#include "nav2_smac_planner/constants.hpp"
 
 namespace nav2_smac_planner
 {
@@ -52,6 +53,7 @@ struct SearchInfo
   bool allow_primitive_interpolation{false};
   bool downsample_obstacle_heuristic{true};
   bool use_quadratic_cost_penalty{false};
+  FootprintScoreMode footprint_score_mode{FootprintScoreMode::CENTER};
 };
 
 /**

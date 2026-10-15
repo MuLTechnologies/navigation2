@@ -111,6 +111,7 @@ struct LatticeMotionTable
   float cost_penalty;
   float reverse_penalty;
   float cusp_penalty;
+  FootprintScoreMode footprint_score_mode{FootprintScoreMode::CENTER};
   float travel_distance_reward;
   float rotation_penalty;
   float min_turning_radius;
@@ -214,6 +215,15 @@ public:
   inline float getCost()
   {
     return _cell_cost;
+  }
+
+  /**
+   * @brief Gets the cost used for traversal scoring (footprint_score_mode)
+   * @return score cost
+   */
+  inline float getScoreCost()
+  {
+    return _score_cost;
   }
 
   /**
@@ -465,6 +475,7 @@ public:
 
 private:
   float _cell_cost;
+  float _score_cost;
   float _accumulated_cost;
   uint64_t _index;
   bool _was_visited;

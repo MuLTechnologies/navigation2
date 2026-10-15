@@ -103,6 +103,17 @@ void SmacPlannerLattice::configure(
   double cusp_penalty_m;
   node->get_parameter(name + ".cusp_penalty", cusp_penalty_m);
   _search_info.cusp_penalty = cusp_penalty_m / _costmap->getResolution();
+  std::string footprint_score_mode;
+  nav2_util::declare_parameter_if_not_declared(
+    node, name + ".footprint_score_mode", rclcpp::ParameterValue("CENTER"));
+  node->get_parameter(name + ".footprint_score_mode", footprint_score_mode);
+  _search_info.footprint_score_mode = fromStringToFSM(footprint_score_mode);
+  if (_search_info.footprint_score_mode == FootprintScoreMode::UNKNOWN) {
+    RCLCPP_WARN(
+      _logger, "Unknown footprint_score_mode '%s', using CENTER. "
+      "Valid options are CENTER, POINTS_MEAN, POINTS_MAX.", footprint_score_mode.c_str());
+    _search_info.footprint_score_mode = FootprintScoreMode::CENTER;
+  }
   nav2_util::declare_parameter_if_not_declared(
     node, name + ".non_straight_penalty", rclcpp::ParameterValue(1.05));
   node->get_parameter(name + ".non_straight_penalty", _search_info.non_straight_penalty);
@@ -668,6 +679,16 @@ SmacPlannerLattice::dynamicParametersCallback(std::vector<rclcpp::Parameter> par
             "of angular bins configured. Disabling course research!"
           );
           _coarse_search_resolution = 1;
+        }
+      } else if (param_name == _name + ".footprint_score_mode") {
+        const FootprintScoreMode mode = fromStringToFSM(parameter.as_string());
+        if (mode == FootprintScoreMode::UNKNOWN) {
+          RCLCPP_WARN(
+            _logger, "Unknown footprint_score_mode '%s', keeping current. "
+            "Valid options are CENTER, POINTS_MEAN, POINTS_MAX.", parameter.as_string().c_str());
+        } else {
+          reinit_a_star = true;
+          _search_info.footprint_score_mode = mode;
         }
       } else if (param_name == _name + ".goal_heading_mode") {
         std::string goal_heading_type = parameter.as_string();

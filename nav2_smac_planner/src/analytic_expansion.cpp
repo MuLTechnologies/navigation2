@@ -379,7 +379,7 @@ float AnalyticExpansion<NodeT>::refineAnalyticPath(
       expansion.nodes[1].proposed_coords.y - expansion.nodes[0].proposed_coords.y);
       const float & weight = expansion.nodes[0].node->motion_table.cost_penalty;
       for (auto iter = expansion.nodes.begin(); iter != expansion.nodes.end(); ++iter) {
-        normalized_cost = iter->node->getCost() / 252.0f;
+        normalized_cost = iter->node->getScoreCost() / 252.0f;
         // Search's Traversal Cost Function
         score += distance * (1.0 + weight * normalized_cost);
       }

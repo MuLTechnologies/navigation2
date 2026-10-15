@@ -14,6 +14,7 @@
 
 #include <vector>
 #include <memory>
+#include <utility>
 
 #include "nav2_costmap_2d/footprint_collision_checker.hpp"
 #include "nav2_costmap_2d/costmap_2d_ros.hpp"
@@ -99,6 +100,28 @@ public:
   float getCost();
 
   /**
+   * @brief Max cost along the full footprint outline from the last pose inCollision() checked
+   * @return the outline cost, or -1 if that call didn't rasterize the footprint
+   * (far from obstacles, radius footprints, or an early collision return)
+   */
+  float getFootprintCost() const;
+
+  /**
+   * @brief Score a pose by sampling cost at the footprint's vertices, edge midpoints
+   * and centroid. Read-only: does not affect collision results or getCost().
+   * @param x X coordinate of pose, in cells
+   * @param y Y coordinate of pose, in cells
+   * @param angle_bin Angle bin number of pose (NOT radians)
+   * @param use_max Return the highest sampled cost instead of the mean
+   * @return the score, in costmap cost units
+   */
+  float scoreFootprint(
+    const float & x,
+    const float & y,
+    const float & angle_bin,
+    const bool & use_max);
+
+  /**
    * @brief Get the angles of the precomputed footprint orientations
    * @return the ordered vector of angles corresponding to footprints
    */
@@ -126,7 +149,11 @@ protected:
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros_;
   std::vector<nav2_costmap_2d::Footprint> oriented_footprints_;
   nav2_costmap_2d::Footprint unoriented_footprint_;
+  // Score sample points per angle bin, as offsets in cells from the pose
+  std::vector<std::vector<std::pair<float, float>>> oriented_score_points_;
+  double score_points_resolution_{0.0};
   float center_cost_;
+  float footprint_cost_{-1.0f};
   bool footprint_is_radius_{false};
   std::vector<float> angles_;
   float possible_collision_cost_{-1};

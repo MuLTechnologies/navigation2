@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License. Reserved.
 
+#include <algorithm>
+
 #include "nav2_smac_planner/collision_checker.hpp"
 
 namespace nav2_smac_planner
@@ -72,7 +74,8 @@ void GridCollisionChecker::setFootprint(
   }
 
   // No change, no updates required
-  if (footprint == unoriented_footprint_) {
+  const double resolution = costmap_->getResolution();
+  if (footprint == unoriented_footprint_ && resolution == score_points_resolution_) {
     return;
   }
 
@@ -81,6 +84,24 @@ void GridCollisionChecker::setFootprint(
   double sin_th, cos_th;
   geometry_msgs::msg::Point new_pt;
   const unsigned int footprint_size = footprint.size();
+
+  // Score sample points: vertices, edge midpoints and the vertex centroid
+  std::vector<std::pair<double, double>> score_points;
+  score_points.reserve(2 * footprint_size + 1);
+  double cx = 0.0, cy = 0.0;
+  for (unsigned int j = 0; j < footprint_size; j++) {
+    const auto & a = footprint[j];
+    const auto & b = footprint[(j + 1) % footprint_size];
+    score_points.emplace_back(a.x, a.y);
+    score_points.emplace_back(0.5 * (a.x + b.x), 0.5 * (a.y + b.y));
+    cx += a.x;
+    cy += a.y;
+  }
+  if (footprint_size > 0) {
+    score_points.emplace_back(cx / footprint_size, cy / footprint_size);
+  }
+  oriented_score_points_.clear();
+  oriented_score_points_.reserve(angles_.size());
 
   // Precompute the orientation bins for checking to use
   for (unsigned int i = 0; i != angles_.size(); i++) {
@@ -96,9 +117,19 @@ void GridCollisionChecker::setFootprint(
     }
 
     oriented_footprints_.push_back(oriented_footprint);
+
+    std::vector<std::pair<float, float>> oriented_points;
+    oriented_points.reserve(score_points.size());
+    for (const auto & p : score_points) {
+      oriented_points.emplace_back(
+        static_cast<float>((p.first * cos_th - p.second * sin_th) / resolution),
+        static_cast<float>((p.first * sin_th + p.second * cos_th) / resolution));
+    }
+    oriented_score_points_.push_back(oriented_points);
   }
 
   unoriented_footprint_ = footprint;
+  score_points_resolution_ = resolution;
 }
 
 bool GridCollisionChecker::inCollision(
@@ -107,6 +138,8 @@ bool GridCollisionChecker::inCollision(
   const float & angle_bin,
   const bool & traverse_unknown)
 {
+  footprint_cost_ = -1.0f;
+
   // Check to make sure cell is inside the map
   if (outsideRange(costmap_->getSizeInCellsX(), x) ||
     outsideRange(costmap_->getSizeInCellsY(), y))
@@ -151,6 +184,7 @@ bool GridCollisionChecker::inCollision(
     }
 
     float footprint_cost = static_cast<float>(footprintCost(current_footprint));
+    footprint_cost_ = footprint_cost;
 
     if (footprint_cost == UNKNOWN_COST && traverse_unknown) {
       return false;
@@ -173,6 +207,7 @@ bool GridCollisionChecker::inCollision(
   const unsigned int & i,
   const bool & traverse_unknown)
 {
+  footprint_cost_ = -1.0f;
   center_cost_ = costmap_->getCost(i);
   if (center_cost_ == UNKNOWN_COST && traverse_unknown) {
     return false;
@@ -186,6 +221,46 @@ float GridCollisionChecker::getCost()
 {
   // Assumes inCollision called prior
   return static_cast<float>(center_cost_);
+}
+
+float GridCollisionChecker::getFootprintCost() const
+{
+  return footprint_cost_;
+}
+
+float GridCollisionChecker::scoreFootprint(
+  const float & x,
+  const float & y,
+  const float & angle_bin,
+  const bool & use_max)
+{
+  const unsigned int size_x = costmap_->getSizeInCellsX();
+  const unsigned int size_y = costmap_->getSizeInCellsY();
+  // Off-map samples score as occupied; collision checking rejects those poses separately
+  auto cellCost = [&](const float & fx, const float & fy) {
+      if (fx < 0.0f || fy < 0.0f || fx >= size_x || fy >= size_y) {
+        return OCCUPIED_COST;
+      }
+      return static_cast<float>(costmap_->getCost(
+               static_cast<unsigned int>(fx), static_cast<unsigned int>(fy)));
+    };
+
+  if (footprint_is_radius_ || oriented_score_points_.empty() ||
+    oriented_score_points_[0].empty())
+  {
+    return cellCost(x + 0.5f, y + 0.5f);
+  }
+
+  const auto & points =
+    oriented_score_points_[static_cast<unsigned int>(angle_bin) % oriented_score_points_.size()];
+  float sum = 0.0f;
+  float max = 0.0f;
+  for (const auto & p : points) {
+    const float cost = cellCost(x + p.first + 0.5f, y + p.second + 0.5f);
+    sum += cost;
+    max = std::max(max, cost);
+  }
+  return use_max ? max : sum / static_cast<float>(points.size());
 }
 
 bool GridCollisionChecker::outsideRange(const unsigned int & max, const float & value)
