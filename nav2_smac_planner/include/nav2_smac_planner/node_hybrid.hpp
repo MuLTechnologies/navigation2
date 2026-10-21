@@ -404,12 +404,27 @@ public:
    * @param motion_model Motion model to use for state space
    * @param dim_3_size Number of quantization bins for caching
    * @param search_info Info containing minimum radius to use
+   * @param lookup_table Planner-owned table to populate
    */
   static void precomputeDistanceHeuristic(
     const float & lookup_table_dim,
     const MotionModel & motion_model,
     const unsigned int & dim_3_size,
-    const SearchInfo & search_info);
+    const SearchInfo & search_info,
+    LookupTable & lookup_table);
+
+  /**
+   * @brief Bind a planner's distance lookup table to the calling (planning) thread
+   * @param lookup_table Table populated by precomputeDistanceHeuristic
+   * @param lookup_table_dim Dimension the table was populated with
+   */
+  static void setDistanceHeuristicLookup(
+    const LookupTable * lookup_table,
+    const float & lookup_table_dim)
+  {
+    dist_heuristic_lookup_table = lookup_table;
+    size_lookup = lookup_table_dim;
+  }
 
   /**
    * @brief Compute the Obstacle heuristic
@@ -486,9 +501,8 @@ public:
   thread_local static ObstacleHeuristicQueue obstacle_heuristic_queue;
 
   thread_local static std::shared_ptr<nav2_costmap_2d::Costmap2DROS> costmap_ros;
-  // Dubin / Reeds-Shepp lookup and size for dereferencing
-  static LookupTable dist_heuristic_lookup_table;
-  static std::mutex dist_heuristic_lookup_table_mutex;
+  // Dubin / Reeds-Shepp lookup and size for dereferencing; owned per planner, bound per plan
+  thread_local static const LookupTable * dist_heuristic_lookup_table;
   thread_local static float size_lookup;
 
 private:

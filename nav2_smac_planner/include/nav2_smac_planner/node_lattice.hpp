@@ -347,12 +347,27 @@ public:
    * @param motion_model Motion model to use for state space
    * @param dim_3_size Number of quantization bins for caching
    * @param search_info Info containing minimum radius to use
+   * @param lookup_table Table to populate, owned by the calling planner
    */
   static void precomputeDistanceHeuristic(
     const float & lookup_table_dim,
     const MotionModel & motion_model,
     const unsigned int & dim_3_size,
-    const SearchInfo & search_info);
+    const SearchInfo & search_info,
+    LookupTable & lookup_table);
+
+  /**
+   * @brief Bind a planner's distance lookup table to the calling (planning) thread
+   * @param lookup_table Table populated by precomputeDistanceHeuristic
+   * @param lookup_table_dim Dimension the table was populated with
+   */
+  static void setDistanceHeuristicLookup(
+    const LookupTable * lookup_table,
+    const float & lookup_table_dim)
+  {
+    dist_heuristic_lookup_table = lookup_table;
+    size_lookup = lookup_table_dim;
+  }
 
   /**
    * @brief Compute the wavefront heuristic
@@ -426,7 +441,7 @@ public:
   Coordinates pose;
   thread_local static LatticeMotionTable motion_table;
   // Dubin / Reeds-Shepp lookup and size for dereferencing
-  thread_local static LookupTable dist_heuristic_lookup_table;
+  thread_local static const LookupTable * dist_heuristic_lookup_table;
   thread_local static float size_lookup;
 
 private:
