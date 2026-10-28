@@ -314,6 +314,42 @@ TEST(collision_footprint, test_footprint_cost_between_samples)
   delete costmap_;
 }
 
+TEST(collision_footprint, test_angle_bin_wraps)
+{
+  auto node = std::make_shared<rclcpp_lifecycle::LifecycleNode>("testG");
+  nav2_costmap_2d::Costmap2D * costmap_ = new nav2_costmap_2d::Costmap2D(
+    100, 100, 0.1, 0.0, 0.0, 0);
+
+  // Same cart-like rectangle as test_score_footprint: x in [-1.0, 0.2], y in [-0.3, 0.3]
+  geometry_msgs::msg::Point p1, p2, p3, p4;
+  p1.x = 0.2;
+  p1.y = 0.3;
+  p2.x = 0.2;
+  p2.y = -0.3;
+  p3.x = -1.0;
+  p3.y = -0.3;
+  p4.x = -1.0;
+  p4.y = 0.3;
+  nav2_costmap_2d::Footprint footprint = {p1, p2, p3, p4};
+
+  // On the left side at heading 0 (row 53, x 40 to 52); off the outline at heading pi
+  costmap_->setCost(43, 53, 254);
+
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  *costmap_ros->getCostmap() = *costmap_;
+
+  nav2_smac_planner::GridCollisionChecker collision_checker(costmap_ros, 16, node);
+  collision_checker.setFootprint(footprint, false /*use footprint*/, 0.0);
+
+  EXPECT_TRUE(collision_checker.inCollision(50, 50, 0.0, false));
+  EXPECT_FALSE(collision_checker.inCollision(50, 50, 8.0, false));
+  // A primitive pose at exactly 2*pi gives bin == number of bins: same as bin 0
+  EXPECT_TRUE(collision_checker.inCollision(50, 50, 16.0, false));
+
+  delete costmap_;
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);

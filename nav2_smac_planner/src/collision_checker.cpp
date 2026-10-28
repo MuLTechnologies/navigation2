@@ -174,7 +174,9 @@ bool GridCollisionChecker::inCollision(
     double wx, wy;
     costmap_->mapToWorld(static_cast<double>(x), static_cast<double>(y), wx, wy);
     geometry_msgs::msg::Point new_pt;
-    const nav2_costmap_2d::Footprint & oriented_footprint = oriented_footprints_[angle_bin];
+    // Wrap like scoreFootprint(): a primitive pose at exactly 2*pi gives bin == size
+    const nav2_costmap_2d::Footprint & oriented_footprint =
+      oriented_footprints_[static_cast<unsigned int>(angle_bin) % oriented_footprints_.size()];
     nav2_costmap_2d::Footprint current_footprint;
     current_footprint.reserve(oriented_footprint.size());
     for (unsigned int i = 0; i < oriented_footprint.size(); ++i) {
