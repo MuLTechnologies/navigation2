@@ -544,6 +544,62 @@ TEST(NodeLatticeTest, test_footprint_score_mode)
   delete costmapA;
 }
 
+TEST(NodeLatticeTest, test_bin_size_per_collision_checker)
+{
+  // Planners in one process can use collision checkers with different numbers of angle bins
+  auto lnode = std::make_shared<rclcpp_lifecycle::LifecycleNode>("test");
+  std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("nav2_smac_planner");
+  std::string filePath =
+    pkg_share_dir + "/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json";
+
+  nav2_smac_planner::SearchInfo info;
+  info.non_straight_penalty = 1;
+  info.change_penalty = 0;
+  info.reverse_penalty = 1;
+  info.cost_penalty = 1;
+  info.retrospective_penalty = 0.0;
+  info.lattice_filepath = filePath;
+  info.allow_reverse_expansion = true;
+  unsigned int x = 100, y = 100, angle_quantization = 16;
+  nav2_smac_planner::NodeLattice::initMotionModel(
+    nav2_smac_planner::MotionModel::STATE_LATTICE, x, y, angle_quantization, info);
+
+  // Footprint x in [-0.5, 0.1], y in [-0.15, 0.15]. At (20, 20) heading 45 deg the middle of
+  // the rear edge is cell (13, 13); at heading 90 deg the footprint spans x 17 to 23
+  nav2_costmap_2d::Costmap2D * costmapA = new nav2_costmap_2d::Costmap2D(40, 40, 0.05, 0.0, 0.0, 0);
+  costmapA->setCost(13, 13, 254);
+  auto costmap_ros = std::make_shared<nav2_costmap_2d::Costmap2DROS>();
+  costmap_ros->on_configure(rclcpp_lifecycle::State());
+  *costmap_ros->getCostmap() = *costmapA;
+  nav2_costmap_2d::Footprint footprint;
+  geometry_msgs::msg::Point p;
+  p.x = 0.1;
+  p.y = 0.15;
+  footprint.push_back(p);
+  p.y = -0.15;
+  footprint.push_back(p);
+  p.x = -0.5;
+  footprint.push_back(p);
+  p.y = 0.15;
+  footprint.push_back(p);
+
+  // Lattice heading bins 2 and 4 are 45 and 90 deg
+  unsigned int index = 0;
+  for (unsigned int bins : {16u, 32u, 16u}) {
+    auto checker =
+      std::make_unique<nav2_smac_planner::GridCollisionChecker>(costmap_ros, bins, lnode);
+    checker->setFootprint(footprint, false, 0.0);
+    nav2_smac_planner::NodeLattice at_45(index++);
+    at_45.pose = nav2_smac_planner::NodeLattice::Coordinates(20, 20, 2);
+    EXPECT_FALSE(at_45.isNodeValid(true, checker.get())) << bins << " bins";
+    nav2_smac_planner::NodeLattice at_90(index++);
+    at_90.pose = nav2_smac_planner::NodeLattice::Coordinates(20, 20, 4);
+    EXPECT_TRUE(at_90.isNodeValid(true, checker.get())) << bins << " bins";
+  }
+
+  delete costmapA;
+}
+
 int main(int argc, char **argv)
 {
   ::testing::InitGoogleTest(&argc, argv);
