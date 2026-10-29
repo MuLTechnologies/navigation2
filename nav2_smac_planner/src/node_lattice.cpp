@@ -78,16 +78,14 @@ void LatticeMotionTable::initMotionModel(
   latticeFile >> json;
   num_angle_quantization = lattice_metadata.number_of_headings;
 
-  if (!state_space) {
-    if (!allow_reverse_expansion) {
-      state_space = std::make_shared<ompl::base::DubinsStateSpace>(
-        lattice_metadata.min_turning_radius);
-      motion_model = MotionModel::DUBIN;
-    } else {
-      state_space = std::make_shared<ompl::base::ReedsSheppStateSpace>(
-        lattice_metadata.min_turning_radius);
-      motion_model = MotionModel::REEDS_SHEPP;
-    }
+  // Radius in cells, like precomputeDistanceHeuristic(); the table is thread_local, so planning
+  // threads build their own state space here (metadata radius is in meters)
+  if (!allow_reverse_expansion) {
+    state_space = std::make_shared<ompl::base::DubinsStateSpace>(min_turning_radius);
+    motion_model = MotionModel::DUBIN;
+  } else {
+    state_space = std::make_shared<ompl::base::ReedsSheppStateSpace>(min_turning_radius);
+    motion_model = MotionModel::REEDS_SHEPP;
   }
 
   // Populate the motion primitives at each heading angle

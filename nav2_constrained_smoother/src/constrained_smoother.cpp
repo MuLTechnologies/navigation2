@@ -15,6 +15,7 @@
 // limitations under the License.
 
 #include <algorithm>
+#include <chrono>
 #include <string>
 #include <memory>
 #include <utility>
@@ -30,6 +31,7 @@
 #include "pluginlib/class_list_macros.hpp"
 
 #include "tf2/utils.h"
+#include "angles/angles.h"
 
 using nav2_util::declare_parameter_if_not_declared;
 using nav2_util::geometry_utils::euclidean_distance;
@@ -37,6 +39,9 @@ using namespace nav2_costmap_2d;  // NOLINT
 
 namespace nav2_constrained_smoother
 {
+
+// Lattice in-place rotations repeat the exact position; anything closer counts as one position
+constexpr double SAME_POSITION_TOLERANCE = 1e-3;  // m
 
 void ConstrainedSmoother::configure(
   const rclcpp_lifecycle::LifecycleNode::WeakPtr & parent,
@@ -93,35 +98,103 @@ bool ConstrainedSmoother::smooth(nav_msgs::msg::Path & path, const rclcpp::Durat
     return true;
   }
 
+  // Split at pivots: segments[k] ends and segments[k + 1] starts at the pivot, rotations[k] between
+  std::vector<std::vector<geometry_msgs::msg::PoseStamped>> segments(1);
+  std::vector<std::vector<geometry_msgs::msg::PoseStamped>> rotations;
+  if (!smoother_params_.preserve_rotations) {
+    segments[0] = path.poses;
+  } else {
+    const auto & poses = path.poses;
+    for (size_t i = 0; i < poses.size(); ) {
+      // Run [i, j] of poses at one position and how far it turns
+      size_t j = i;
+      double turn = 0.0;
+      while (j + 1 < poses.size() &&
+        euclidean_distance(poses[j + 1], poses[i]) < SAME_POSITION_TOLERANCE)
+      {
+        turn += std::abs(
+          angles::shortest_angular_distance(
+            tf2::getYaw(poses[j].pose.orientation), tf2::getYaw(poses[j + 1].pose.orientation)));
+        j++;
+      }
+      if (j > i && turn >= smoother_params_.min_preserved_rotation) {
+        segments.back().push_back(poses[i]);
+        rotations.emplace_back(poses.begin() + i + 1, poses.begin() + j);
+        segments.emplace_back(1, poses[j]);
+      } else {
+        // Smaller rotations collapse to their final heading and are smoothed through
+        segments.back().push_back(poses[j]);
+      }
+      i = j + 1;
+    }
+  }
+
+  const auto deadline = std::chrono::steady_clock::now() +
+    std::chrono::nanoseconds(max_time.nanoseconds());
+  std::vector<geometry_msgs::msg::PoseStamped> smoothed;
+  smoothed.reserve(path.poses.size());
+  for (size_t k = 0; k < segments.size(); k++) {
+    auto & segment = segments[k];
+    // Pivot ends keep their heading so each segment leaves and enters its rotation aligned
+    SmootherParams params = smoother_params_;
+    if (k > 0) {
+      params.keep_start_orientation = true;
+    }
+    if (k + 1 < segments.size()) {
+      params.keep_goal_orientation = true;
+    }
+    params.max_time = std::max(
+      0.0, std::chrono::duration<double>(deadline - std::chrono::steady_clock::now()).count());
+    if (segment.size() >= 2 && !smoothSegment(segment, params)) {
+      RCLCPP_WARN(
+        logger_,
+        "%s: failed to smooth plan, Ceres could not find a usable solution to optimize.",
+        plugin_name_.c_str());
+      // By value: smoother_server catches PlannerException, a thrown pointer would terminate it
+      throw nav2_core::PlannerException(
+              "Failed to smooth plan, Ceres could not find a usable solution.");
+    }
+    smoothed.insert(smoothed.end(), segment.begin(), segment.end());
+    if (k < rotations.size()) {
+      smoothed.insert(smoothed.end(), rotations[k].begin(), rotations[k].end());
+    }
+  }
+  path.poses = std::move(smoothed);
+  return true;
+}
+
+bool ConstrainedSmoother::smoothSegment(
+  std::vector<geometry_msgs::msg::PoseStamped> & poses, const SmootherParams & params)
+{
   // populate smoother input with (x, y, forward/reverse dir)
   std::vector<Eigen::Vector3d> path_world;
-  path_world.reserve(path.poses.size());
+  path_world.reserve(poses.size());
   // smoother keeps record of start/end orientations so that it
   // can use them in the final path, preventing degradation of these (often important) values
   Eigen::Vector2d start_dir;
   Eigen::Vector2d end_dir;
-  for (size_t i = 0; i < path.poses.size(); i++) {
-    auto & pose = path.poses[i].pose;
+  for (size_t i = 0; i < poses.size(); i++) {
+    auto & pose = poses[i].pose;
     double angle = tf2::getYaw(pose.orientation);
     Eigen::Vector2d orientation(cos(angle), sin(angle));
-    if (i == path.poses.size() - 1) {
+    if (i == poses.size() - 1) {
       // Note: `reversing` indicates the direction of the segment after the point and
       // there is no segment after the last point. Most probably the value is irrelevant, but
       // copying it from the last but one point, just to make it defined...
       path_world.emplace_back(pose.position.x, pose.position.y, path_world.back()[2]);
       end_dir = orientation;
     } else {
-      auto & pos_next = path.poses[i + 1].pose.position;
+      auto & pos_next = poses[i + 1].pose.position;
       Eigen::Vector2d mvmt(pos_next.x - pose.position.x, pos_next.y - pose.position.y);
       // robot is considered reversing when angle between its orientation and movement direction
       // is more than 90 degrees (i.e. dot product is less than 0)
-      bool reversing = smoother_params_.reversing_enabled && orientation.dot(mvmt) < 0;
+      bool reversing = params.reversing_enabled && orientation.dot(mvmt) < 0;
       // we transform boolean value of "reversing" into sign of movement direction (+1 or -1)
       // to simplify further computations
       path_world.emplace_back(pose.position.x, pose.position.y, reversing ? -1 : 1);
       if (i == 0) {
         start_dir = orientation;
-      } else if (i == 1 && !smoother_params_.keep_start_orientation) {
+      } else if (i == 1 && !params.keep_start_orientation) {
         // overwrite start forward/reverse when orientation was set to be ignored
         // note: start_dir is overwritten inside Smoother::upsampleAndPopulate() method
         path_world[0][2] = path_world.back()[2];
@@ -129,31 +202,24 @@ bool ConstrainedSmoother::smooth(nav_msgs::msg::Path & path, const rclcpp::Durat
     }
   }
 
-  smoother_params_.max_time = max_time.seconds();
-
   // Smooth plan
   auto costmap = costmap_sub_->getCostmap();
-  if (!smoother_->smooth(path_world, start_dir, end_dir, costmap.get(), smoother_params_)) {
-    RCLCPP_WARN(
-      logger_,
-      "%s: failed to smooth plan, Ceres could not find a usable solution to optimize.",
-      plugin_name_.c_str());
-    throw new nav2_core::PlannerException(
-            "Failed to smooth plan, Ceres could not find a usable solution.");
+  if (!smoother_->smooth(path_world, start_dir, end_dir, costmap.get(), params)) {
+    return false;
   }
 
   // populate final path
   geometry_msgs::msg::PoseStamped pose;
-  pose.header = path.poses.front().header;
-  path.poses.clear();
-  path.poses.reserve(path_world.size());
+  pose.header = poses.front().header;
+  poses.clear();
+  poses.reserve(path_world.size());
   for (auto & pw : path_world) {
     pose.pose.position.x = pw[0];
     pose.pose.position.y = pw[1];
     pose.pose.orientation.z = sin(pw[2] / 2);
     pose.pose.orientation.w = cos(pw[2] / 2);
 
-    path.poses.push_back(pose);
+    poses.push_back(pose);
   }
 
   return true;

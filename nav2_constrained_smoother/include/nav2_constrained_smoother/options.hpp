@@ -108,6 +108,14 @@ struct SmootherParams
     nav2_util::declare_parameter_if_not_declared(
       node, local_name + "keep_start_orientation", rclcpp::ParameterValue(true));
     node->get_parameter(local_name + "keep_start_orientation", keep_start_orientation);
+    // Fork: keep in-place rotations (poses sharing a position) as fixed pivots between
+    // independently smoothed segments; smaller rotations are smoothed through
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "preserve_rotations", rclcpp::ParameterValue(false));
+    node->get_parameter(local_name + "preserve_rotations", preserve_rotations);
+    nav2_util::declare_parameter_if_not_declared(
+      node, local_name + "min_preserved_rotation", rclcpp::ParameterValue(0.5));
+    node->get_parameter(local_name + "min_preserved_rotation", min_preserved_rotation);
   }
 
   double smooth_weight{0.0};
@@ -123,6 +131,8 @@ struct SmootherParams
   bool reversing_enabled{true};
   bool keep_goal_orientation{true};
   bool keep_start_orientation{true};
+  bool preserve_rotations{false};
+  double min_preserved_rotation{0.5};  // rad
   std::vector<double> cost_check_points{};
 };
 

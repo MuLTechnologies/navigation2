@@ -19,8 +19,10 @@
 #include <memory>
 #include <unordered_map>
 #include <limits>
+#include <thread>
 #include "nav2_smac_planner/node_lattice.hpp"
 #include "gtest/gtest.h"
+#include "ompl/base/ScopedState.h"
 #include "ament_index_cpp/get_package_share_directory.hpp"
 #include "nav2_util/lifecycle_node.hpp"
 
@@ -598,6 +600,33 @@ TEST(NodeLatticeTest, test_bin_size_per_collision_checker)
   }
 
   delete costmapA;
+}
+
+TEST(NodeLatticeTest, test_state_space_radius_on_planning_thread)
+{
+  // Planning runs on a new thread with an empty thread_local motion table; its Reeds-Shepp
+  // space must use the radius in cells, not the lattice metadata's meters
+  std::string pkg_share_dir = ament_index_cpp::get_package_share_directory("nav2_smac_planner");
+  nav2_smac_planner::SearchInfo info;
+  info.lattice_filepath =
+    pkg_share_dir + "/sample_primitives/5cm_resolution/0.5m_turning_radius/diff/output.json";
+  info.allow_reverse_expansion = true;
+  info.minimum_turning_radius = 10.0;  // 0.5 m at 5 cm
+
+  double distance = 0.0;
+  std::thread([&]() {
+      unsigned int x = 100, y = 100, angle_quantization = 16;
+      nav2_smac_planner::NodeLattice::initMotionModel(
+        nav2_smac_planner::MotionModel::STATE_LATTICE, x, y, angle_quantization, info);
+      auto & space = nav2_smac_planner::NodeLattice::motion_table.state_space;
+      ompl::base::ScopedState<> from(space), to(space);
+      from[0] = 0.0; from[1] = 0.0; from[2] = 0.0;
+      to[0] = 0.0; to[1] = 0.0; to[2] = M_PI;
+      distance = space->distance(from(), to());
+    }).join();
+
+  // Turning 180 deg takes at least pi * radius of arc; a 0.5 cell radius gave about 1.6
+  EXPECT_GT(distance, M_PI * info.minimum_turning_radius);
 }
 
 int main(int argc, char **argv)
