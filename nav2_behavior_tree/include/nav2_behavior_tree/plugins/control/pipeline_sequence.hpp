@@ -50,6 +50,9 @@ namespace nav2_behavior_tree
  * If any children at any time had returned FAILURE. PipelineSequence would have returned FAILURE
  * and halted all children, ending the sequence.
  *
+ * When children are halted, the last child goes first, so the final stage of the
+ * pipeline is stopped before the stages that feed it; the others follow in order.
+ *
  * Usage in XML: <PipelineSequence>
  */
 class PipelineSequence : public BT::ControlNode
@@ -85,6 +88,11 @@ protected:
    * @return BT::NodeStatus Status of tick execution
    */
   BT::NodeStatus tick() override;
+
+  /**
+   * @brief Halt all children: the last one first, then the others in order
+   */
+  void haltChildrenLastFirst();
 
   std::size_t last_child_ticked_ = 0;
 };

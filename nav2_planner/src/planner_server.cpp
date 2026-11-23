@@ -31,6 +31,7 @@
 #include "nav2_util/node_utils.hpp"
 #include "nav2_util/geometry_utils.hpp"
 #include "nav2_costmap_2d/cost_values.hpp"
+#include "nav2_core/planner_exceptions.hpp"
 
 #include "nav2_planner/planner_server.hpp"
 
@@ -426,7 +427,9 @@ PlannerServer::computePlanThroughPoses()
       }
 
       // Get plan from start -> goal
-      nav_msgs::msg::Path curr_path = getPlan(curr_start, curr_goal, goal->planner_id);
+      nav_msgs::msg::Path curr_path = getPlan(
+        curr_start, curr_goal, goal->planner_id,
+        [this]() {return action_server_poses_->is_cancel_requested();});
 
       // check path for validity
       if (!validatePath(action_server_poses_, curr_goal, curr_path, goal->planner_id)) {
@@ -454,6 +457,9 @@ PlannerServer::computePlanThroughPoses()
     }
 
     action_server_poses_->succeeded_current(result);
+  } catch (nav2_core::PlannerCancelled &) {
+    RCLCPP_INFO(get_logger(), "Goal was canceled. Canceling planning action.");
+    action_server_poses_->terminate_all();
   } catch (std::exception & ex) {
     RCLCPP_WARN(
       get_logger(),
@@ -495,7 +501,9 @@ PlannerServer::computePlan()
       return;
     }
 
-    result->path = getPlan(start, goal_pose, goal->planner_id);
+    result->path = getPlan(
+      start, goal_pose, goal->planner_id,
+      [this]() {return action_server_pose_->is_cancel_requested();});
 
     if (!validatePath(action_server_pose_, goal_pose, result->path, goal->planner_id)) {
       return;
@@ -515,6 +523,9 @@ PlannerServer::computePlan()
     }
 
     action_server_pose_->succeeded_current(result);
+  } catch (nav2_core::PlannerCancelled &) {
+    RCLCPP_INFO(get_logger(), "Goal was canceled. Canceling planning action.");
+    action_server_pose_->terminate_all();
   } catch (std::exception & ex) {
     RCLCPP_WARN(
       get_logger(), "%s plugin failed to plan calculation to (%.2f, %.2f): \"%s\"",
@@ -557,7 +568,9 @@ PlannerServer::computePlan2()
       return;
     }  
 
-    result->path = getPlan(start, goal_pose, goal->planner_id); 
+    result->path = getPlan(
+      start, goal_pose, goal->planner_id,
+      [this]() {return action_server_pose2_->is_cancel_requested();});
 
     if (!validatePath(action_server_pose2_, goal_pose, result->path, goal->planner_id)) {
       return;
@@ -577,6 +590,9 @@ PlannerServer::computePlan2()
     }
 
     action_server_pose2_->succeeded_current(result);
+  } catch (nav2_core::PlannerCancelled &) {
+    RCLCPP_INFO(get_logger(), "Goal was canceled. Canceling planning action.");
+    action_server_pose2_->terminate_all();
   } catch (std::exception & ex) {
     RCLCPP_WARN(
       get_logger(), "%s plugin failed to plan calculation to (%.2f, %.2f): \"%s\"",
@@ -590,7 +606,8 @@ nav_msgs::msg::Path
 PlannerServer::getPlan(
   const geometry_msgs::msg::PoseStamped & start,
   const geometry_msgs::msg::PoseStamped & goal,
-  const std::string & planner_id)
+  const std::string & planner_id,
+  std::function<bool()> cancel_checker)
 {
   RCLCPP_INFO(
     get_logger(), "Attempting to a find path from (%.2f, %.2f) to "
@@ -598,14 +615,14 @@ PlannerServer::getPlan(
     goal.pose.position.x, goal.pose.position.y);
 
   if (planners_.find(planner_id) != planners_.end()) {
-    return planners_[planner_id]->createPlan(start, goal, [](){ return false; });
+    return planners_[planner_id]->createPlan(start, goal, cancel_checker);
   } else {
     if (planners_.size() == 1 && planner_id.empty()) {
       RCLCPP_WARN_ONCE(
         get_logger(), "No planners specified in action call. "
         "Server will use only plugin %s in server."
         " This warning will appear once.", planner_ids_concat_.c_str());
-      return planners_[planners_.begin()->first]->createPlan(start, goal, [](){ return false; });
+      return planners_[planners_.begin()->first]->createPlan(start, goal, cancel_checker);
     } else {
       RCLCPP_ERROR(
         get_logger(), "planner %s is not a valid planner. "

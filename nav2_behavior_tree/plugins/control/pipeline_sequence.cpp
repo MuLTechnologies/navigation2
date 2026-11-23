@@ -39,7 +39,7 @@ BT::NodeStatus PipelineSequence::tick()
     auto status = children_nodes_[i]->executeTick();
     switch (status) {
       case BT::NodeStatus::FAILURE:
-        ControlNode::haltChildren();
+        haltChildrenLastFirst();
         last_child_ticked_ = 0;  // reset
         return status;
       case BT::NodeStatus::SUCCESS:
@@ -61,15 +61,31 @@ BT::NodeStatus PipelineSequence::tick()
     }
   }
   // Wrap up.
-  ControlNode::haltChildren();
+  haltChildrenLastFirst();
   last_child_ticked_ = 0;  // reset
   return BT::NodeStatus::SUCCESS;
 }
 
 void PipelineSequence::halt()
 {
+  haltChildrenLastFirst();
   BT::ControlNode::halt();
   last_child_ticked_ = 0;
+}
+
+void PipelineSequence::haltChildrenLastFirst()
+{
+  // The last child acts on what the earlier ones produce (e.g. the controller
+  // following the planners' path). Halt it first, so that stopping it does not
+  // wait for earlier children whose halt may block on their servers. The earlier
+  // children are then halted in pipeline order, as before.
+  if (children_nodes_.empty()) {
+    return;
+  }
+  haltChild(children_nodes_.size() - 1);
+  for (std::size_t i = 0; i + 1 < children_nodes_.size(); ++i) {
+    haltChild(i);
+  }
 }
 
 }  // namespace nav2_behavior_tree
