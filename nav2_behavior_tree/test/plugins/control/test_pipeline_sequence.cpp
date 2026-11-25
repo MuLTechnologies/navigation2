@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 #include <memory>
+#include <vector>
 
 #include "../../test_behavior_tree_fixture.hpp"
 #include "../../test_dummy_tree_node.hpp"
@@ -123,6 +124,62 @@ TEST_F(PipelineSequenceTestFixture, test_behavior)
   EXPECT_EQ(first_child_->status(), BT::NodeStatus::IDLE);
   EXPECT_EQ(second_child_->status(), BT::NodeStatus::IDLE);
   EXPECT_EQ(third_child_->status(), BT::NodeStatus::IDLE);
+}
+
+// A child that records when it is halted
+class HaltOrderNode : public nav2_behavior_tree::DummyNode
+{
+public:
+  HaltOrderNode(int id, std::vector<int> & halt_order)
+  : id_(id), halt_order_(halt_order)
+  {
+  }
+
+  void halt() override
+  {
+    halt_order_.push_back(id_);
+  }
+
+private:
+  int id_;
+  std::vector<int> & halt_order_;
+};
+
+TEST_F(PipelineSequenceTestFixture, test_halt_order)
+{
+  std::vector<int> halt_order;
+  HaltOrderNode first(0, halt_order), second(1, halt_order), third(2, halt_order);
+  auto node = std::make_shared<nav2_behavior_tree::PipelineSequence>(
+    "pipeline_sequence", *config_);
+  node->addChild(&first);
+  node->addChild(&second);
+  node->addChild(&third);
+
+  // Halted from outside while all children run: the last child is halted first,
+  // then the others in order
+  first.changeStatus(BT::NodeStatus::SUCCESS);
+  second.changeStatus(BT::NodeStatus::SUCCESS);
+  third.changeStatus(BT::NodeStatus::RUNNING);
+  EXPECT_EQ(node->executeTick(), BT::NodeStatus::RUNNING);
+  first.changeStatus(BT::NodeStatus::RUNNING);
+  second.changeStatus(BT::NodeStatus::RUNNING);
+  EXPECT_EQ(node->executeTick(), BT::NodeStatus::RUNNING);
+  node->halt();
+  EXPECT_EQ(halt_order, (std::vector<int>{2, 0, 1}));
+  EXPECT_EQ(first.status(), BT::NodeStatus::IDLE);
+  EXPECT_EQ(second.status(), BT::NodeStatus::IDLE);
+  EXPECT_EQ(third.status(), BT::NodeStatus::IDLE);
+
+  // A child fails while the others run: same order, the failed child is not halted
+  halt_order.clear();
+  first.changeStatus(BT::NodeStatus::SUCCESS);
+  second.changeStatus(BT::NodeStatus::SUCCESS);
+  third.changeStatus(BT::NodeStatus::RUNNING);
+  EXPECT_EQ(node->executeTick(), BT::NodeStatus::RUNNING);
+  first.changeStatus(BT::NodeStatus::RUNNING);
+  second.changeStatus(BT::NodeStatus::FAILURE);
+  EXPECT_EQ(node->executeTick(), BT::NodeStatus::FAILURE);
+  EXPECT_EQ(halt_order, (std::vector<int>{2, 0}));
 }
 
 int main(int argc, char ** argv)

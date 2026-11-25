@@ -14,7 +14,7 @@ namespace nav2_behavior_tree
  * 
  * Returns BT::NodeStatus::RUNNING,
  * its child final state if finished, or
- * BT::NodeStatus::FAILURE on timeout. 
+ * BT::NodeStatus::FAILURE on timeout. The child is halted on timeout.
  */
 class TimeoutController : public BT::DecoratorNode
 {

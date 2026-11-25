@@ -16,6 +16,7 @@
 #define NAV2_PLANNER__PLANNER_SERVER_HPP_
 
 #include <chrono>
+#include <functional>
 #include <string>
 #include <memory>
 #include <vector>
@@ -66,12 +67,16 @@ public:
    * @brief Method to get plan from the desired plugin
    * @param start starting pose
    * @param goal goal request
+   * @param planner_id planner plugin to use
+   * @param cancel_checker returns true when the request has been canceled, so the
+   * planner can stop early; never canceled by default
    * @return Path
    */
   nav_msgs::msg::Path getPlan(
     const geometry_msgs::msg::PoseStamped & start,
     const geometry_msgs::msg::PoseStamped & goal,
-    const std::string & planner_id);
+    const std::string & planner_id,
+    std::function<bool()> cancel_checker = []() {return false;});
 
 protected:
   /**
