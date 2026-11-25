@@ -525,23 +525,28 @@ inline unsigned int findFirstPathInversion(nav_msgs::msg::Path & path)
     return path.poses.size();
   }
 
-  // Iterating through the path to determine the position of the path inversion
-  for (unsigned int idx = 1; idx < path.poses.size() - 1; ++idx) {
-    // We have two vectors for the dot product OA and AB. Determining the vectors.
-    float oa_x = path.poses[idx].pose.position.x -
-      path.poses[idx - 1].pose.position.x;
-    float oa_y = path.poses[idx].pose.position.y -
-      path.poses[idx - 1].pose.position.y;
-    float ab_x = path.poses[idx + 1].pose.position.x -
-      path.poses[idx].pose.position.x;
-    float ab_y = path.poses[idx + 1].pose.position.y -
-      path.poses[idx].pose.position.y;
-
-    // Checking for the existence of cusp, in the path, using the dot product.
-    float dot_product = (oa_x * ab_x) + (oa_y * ab_y);
-    if (dot_product < 0.0f) {
+  // Compare each moving segment with the last moving one, so a cusp hidden behind
+  // in-place rotation poses (zero-length segments) is still found; the cut keeps the rotation.
+  // A change between driving forward and reversing (relative to pose heading) also counts.
+  constexpr float min_segment_sq = 1e-8f;
+  bool have_prev = false;
+  bool prev_forward = true;
+  float prev_x = 0.0f, prev_y = 0.0f;
+  for (unsigned int idx = 0; idx < path.poses.size() - 1; ++idx) {
+    const float ab_x = path.poses[idx + 1].pose.position.x - path.poses[idx].pose.position.x;
+    const float ab_y = path.poses[idx + 1].pose.position.y - path.poses[idx].pose.position.y;
+    if (ab_x * ab_x + ab_y * ab_y < min_segment_sq) {
+      continue;
+    }
+    const float heading = tf2::getYaw(path.poses[idx].pose.orientation);
+    const bool forward = (ab_x * cosf(heading) + ab_y * sinf(heading)) >= 0.0f;
+    if (have_prev && ((prev_x * ab_x + prev_y * ab_y) < 0.0f || forward != prev_forward)) {
       return idx + 1;
     }
+    prev_x = ab_x;
+    prev_y = ab_y;
+    prev_forward = forward;
+    have_prev = true;
   }
 
   return path.poses.size();

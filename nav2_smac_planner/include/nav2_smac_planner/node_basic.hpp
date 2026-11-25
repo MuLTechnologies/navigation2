@@ -76,6 +76,7 @@ public:
   uint64_t index;
   unsigned int motion_index;
   bool backward;
+  int8_t drive_dir;  // Used by NodeLattice
   TurnDirection turn_dir;
 };
 

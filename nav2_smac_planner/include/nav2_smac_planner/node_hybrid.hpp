@@ -131,6 +131,7 @@ struct HybridMotionTable
   float non_straight_penalty;
   float cost_penalty;
   float reverse_penalty;
+  float cusp_penalty;
   float travel_distance_reward;
   bool downsample_obstacle_heuristic;
   bool use_quadratic_cost_penalty;
@@ -274,6 +275,15 @@ public:
    * @return costmap cost
    */
   inline float getCost()
+  {
+    return _cell_cost;
+  }
+
+  /**
+   * @brief Gets the cost used for traversal scoring (same as getCost for Hybrid)
+   * @return score cost
+   */
+  inline float getScoreCost()
   {
     return _cell_cost;
   }

@@ -20,6 +20,7 @@
 #include <thread>
 #include <algorithm>
 #include <vector>
+#include <cmath>
 
 #include "gtest/gtest.h"
 #include "rclcpp/rclcpp.hpp"
@@ -1116,6 +1117,142 @@ TEST_F(SmootherTest, testingLinearSolverTypeParamValidity)
       "SmoothPath.optimizer.linear_solver_type",
       "INVALID_SOLVER"));
   EXPECT_THROW(reloadParams(), std::runtime_error);
+}
+
+// Fork: preserve_rotations. Headings stay in [0, pi] because smoothPath() reads unsigned angles
+class PreserveRotationsTest : public SmootherTest
+{
+protected:
+  void enable(double min_rotation = 0.5)
+  {
+    node_lifecycle_->set_parameter(rclcpp::Parameter("SmoothPath.w_curve", 0.0));
+    node_lifecycle_->set_parameter(rclcpp::Parameter("SmoothPath.preserve_rotations", true));
+    node_lifecycle_->set_parameter(
+      rclcpp::Parameter("SmoothPath.min_preserved_rotation", min_rotation));
+    reloadParams();
+  }
+
+  // Indices of output poses at (x, y)
+  static std::vector<size_t> posesAt(const std::vector<Eigen::Vector3d> & path, double x, double y)
+  {
+    std::vector<size_t> out;
+    for (size_t i = 0; i < path.size(); i++) {
+      if (std::hypot(path[i].x() - x, path[i].y() - y) < 1e-6) {
+        out.push_back(i);
+      }
+    }
+    return out;
+  }
+
+  // Zig-zagged leg from (x0, y0) to (x1, y1) in 0.1 m steps, endpoints excluded; the points next
+  // to the endpoints stay on the line since keep_*_orientation holds them fixed
+  static void addLeg(
+    std::vector<Eigen::Vector3d> & path, double x0, double y0, double x1, double y1,
+    double heading)
+  {
+    const int n = static_cast<int>(std::round(std::hypot(x1 - x0, y1 - y0) / 0.1));
+    const Eigen::Vector2d normal(-(y1 - y0), x1 - x0);
+    for (int i = 1; i < n; i++) {
+      const double s = i / static_cast<double>(n);
+      const double offset = (i == 1 || i == n - 1) ? 0.0 : (i % 2 == 0 ? 0.02 : -0.02);
+      const Eigen::Vector2d p = Eigen::Vector2d(x0 + s * (x1 - x0), y0 + s * (y1 - y0)) +
+        normal.normalized() * offset;
+      path.emplace_back(p.x(), p.y(), heading);
+    }
+  }
+};
+
+TEST_F(PreserveRotationsTest, testingPivotKeptBetweenSmoothedSegments)
+{
+  enable();
+  // forward along +x, pivot 90 deg at (0.6, 0), forward along +y
+  std::vector<Eigen::Vector3d> input = {{0.0, 0.0, 0.0}};
+  addLeg(input, 0.0, 0.0, 0.6, 0.0, 0.0);
+  input.insert(
+    input.end(), {{0.6, 0.0, 0.0}, {0.6, 0.0, M_PI / 4}, {0.6, 0.0, M_PI / 2}});
+  addLeg(input, 0.6, 0.0, 0.6, 0.6, M_PI / 2);
+  input.emplace_back(0.6, 0.6, M_PI / 2);
+
+  std::vector<Eigen::Vector3d> output;
+  ASSERT_TRUE(smoothPath(input, output));
+
+  // the pivot keeps its position and every heading, in order
+  auto pivot = posesAt(output, 0.6, 0.0);
+  ASSERT_EQ(pivot.size(), 3u);
+  EXPECT_EQ(pivot[2] - pivot[0], 2u);
+  EXPECT_NEAR(output[pivot[0]].z(), 0.0, 1e-6);
+  EXPECT_NEAR(output[pivot[1]].z(), M_PI / 4, 1e-6);
+  EXPECT_NEAR(output[pivot[2]].z(), M_PI / 2, 1e-6);
+  // segments arrive and leave aligned with the pivot headings
+  EXPECT_NEAR(output[pivot[0] - 1].z(), 0.0, 0.1);
+  EXPECT_NEAR(output[pivot[2] + 1].z(), M_PI / 2, 0.1);
+  // and were smoothed (zig-zag reduced)
+  EXPECT_GT(assessPathImprovement(input, output, mvmt_smoothness_criterion_), 0.0);
+}
+
+TEST_F(PreserveRotationsTest, testingPivotAtStart)
+{
+  enable();
+  std::vector<Eigen::Vector3d> input = {{0.0, 0.0, 0.0}, {0.0, 0.0, M_PI / 4},
+    {0.0, 0.0, M_PI / 2}};
+  addLeg(input, 0.0, 0.0, 0.0, 0.6, M_PI / 2);
+  input.emplace_back(0.0, 0.6, M_PI / 2);
+
+  std::vector<Eigen::Vector3d> output;
+  ASSERT_TRUE(smoothPath(input, output));
+
+  auto pivot = posesAt(output, 0.0, 0.0);
+  ASSERT_EQ(pivot, (std::vector<size_t>{0, 1, 2}));
+  EXPECT_NEAR(output[0].z(), 0.0, 1e-6);
+  EXPECT_NEAR(output[2].z(), M_PI / 2, 1e-6);
+  EXPECT_NEAR(output.back().y(), 0.6, 1e-6);
+}
+
+TEST_F(PreserveRotationsTest, testingSmallRotationSmoothedThrough)
+{
+  enable(0.5);
+  // 0.3 rad snap at (0.6, 0) is below min_preserved_rotation
+  std::vector<Eigen::Vector3d> input = {{0.0, 0.0, 0.0}};
+  addLeg(input, 0.0, 0.0, 0.6, 0.0, 0.0);
+  input.insert(input.end(), {{0.6, 0.0, 0.0}, {0.6, 0.0, 0.3}});
+  addLeg(input, 0.6, 0.0, 1.2, 0.18, 0.3);
+  input.emplace_back(1.2, 0.18, 0.3);
+
+  std::vector<Eigen::Vector3d> output;
+  ASSERT_TRUE(smoothPath(input, output));
+
+  // no two consecutive poses share a position
+  EXPECT_EQ(output.size(), input.size() - 1);
+  for (size_t i = 1; i < output.size(); i++) {
+    EXPECT_GT(((output[i] - output[i - 1]).block<2, 1>(0, 0).norm()), 1e-3) << i;
+  }
+}
+
+TEST_F(PreserveRotationsTest, testingReverseRotateForward)
+{
+  enable();
+  // reverse from (0.6, 0) to (0, 0) facing +x, pivot to +y, forward along +y
+  std::vector<Eigen::Vector3d> input = {{0.6, 0.0, 0.0}};
+  addLeg(input, 0.6, 0.0, 0.0, 0.0, 0.0);
+  input.insert(input.end(), {{0.0, 0.0, 0.0}, {0.0, 0.0, M_PI / 4}, {0.0, 0.0, M_PI / 2}});
+  addLeg(input, 0.0, 0.0, 0.0, 0.6, M_PI / 2);
+  input.emplace_back(0.0, 0.6, M_PI / 2);
+
+  std::vector<Eigen::Vector3d> output;
+  ASSERT_TRUE(smoothPath(input, output));
+
+  auto pivot = posesAt(output, 0.0, 0.0);
+  ASSERT_EQ(pivot.size(), 3u);
+  // reversing leg still faces +x while moving -x
+  for (size_t i = 0; i + 1 < pivot[0]; i++) {
+    const Eigen::Vector2d heading(cos(output[i].z()), sin(output[i].z()));
+    EXPECT_LT(heading.dot((output[i + 1] - output[i]).block<2, 1>(0, 0)), 0.0) << i;
+  }
+  // forward leg faces +y while moving +y
+  for (size_t i = pivot[2]; i + 1 < output.size(); i++) {
+    const Eigen::Vector2d heading(cos(output[i].z()), sin(output[i].z()));
+    EXPECT_GT(heading.dot((output[i + 1] - output[i]).block<2, 1>(0, 0)), 0.0) << i;
+  }
 }
 
 int main(int argc, char ** argv)

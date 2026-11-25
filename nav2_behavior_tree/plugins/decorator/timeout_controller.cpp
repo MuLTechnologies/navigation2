@@ -31,6 +31,9 @@ BT::NodeStatus TimeoutController::tick()
   if (elapsed.seconds() > timeout_) {
     timer_started_ = false;
     RCLCPP_WARN_STREAM(node_->get_logger(), "Timeout elapsed, TimeoutController returning FAILURE!");
+    // Stop what timed out. A child left running is picked up again on the next
+    // tick, and its late result is then used as if it were fresh.
+    haltChild();
     return BT::NodeStatus::FAILURE;
   }
 

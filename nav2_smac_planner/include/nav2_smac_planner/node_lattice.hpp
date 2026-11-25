@@ -110,6 +110,8 @@ struct LatticeMotionTable
   float non_straight_penalty;
   float cost_penalty;
   float reverse_penalty;
+  float cusp_penalty;
+  FootprintScoreMode footprint_score_mode{FootprintScoreMode::CENTER};
   float travel_distance_reward;
   float rotation_penalty;
   float min_turning_radius;
@@ -216,6 +218,15 @@ public:
   }
 
   /**
+   * @brief Gets the cost used for traversal scoring (footprint_score_mode)
+   * @return score cost
+   */
+  inline float getScoreCost()
+  {
+    return _score_cost;
+  }
+
+  /**
    * @brief Gets if cell has been visited in search
    * @param If cell was visited
    */
@@ -256,6 +267,24 @@ public:
   inline bool isBackward()
   {
     return _backwards;
+  }
+
+  /**
+   * @brief Sets the drive direction of the last translating move up to this node
+   * @param dir -1 unknown (no translation yet), 0 forward, 1 reverse
+   */
+  inline void setDriveDirection(const int8_t dir)
+  {
+    _drive_dir = dir;
+  }
+
+  /**
+   * @brief Gets the drive direction of the last translating move; rotations inherit it
+   * @return -1 unknown, 0 forward, 1 reverse
+   */
+  inline int8_t getDriveDirection() const
+  {
+    return _drive_dir;
   }
 
   /**
@@ -446,11 +475,13 @@ public:
 
 private:
   float _cell_cost;
+  float _score_cost;
   float _accumulated_cost;
   uint64_t _index;
   bool _was_visited;
   MotionPrimitive * _motion_primitive;
   bool _backwards;
+  int8_t _drive_dir;
   bool _is_node_valid{false};
 };
 

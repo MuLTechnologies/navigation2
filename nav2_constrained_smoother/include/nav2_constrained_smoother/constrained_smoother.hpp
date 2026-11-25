@@ -89,6 +89,15 @@ public:
     const rclcpp::Duration & max_time) override;
 
 protected:
+  /**
+   * @brief Smooth one segment without in-place rotations
+   * @param poses Segment poses, replaced by the smoothed poses
+   * @param params Smoother parameters for this segment
+   * @return If smoothing was successful
+   */
+  bool smoothSegment(
+    std::vector<geometry_msgs::msg::PoseStamped> & poses, const SmootherParams & params);
+
   std::shared_ptr<tf2_ros::Buffer> tf_;
   std::string plugin_name_;
   std::shared_ptr<nav2_costmap_2d::CostmapSubscriber> costmap_sub_;

@@ -1,0 +1,3 @@
+ament_add_gtest(path_inversion_test path_inversion_test.cpp)
+ament_target_dependencies(path_inversion_test ${dependencies_pkgs})
+target_link_libraries(path_inversion_test mppi_controller)

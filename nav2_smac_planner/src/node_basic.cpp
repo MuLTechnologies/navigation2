@@ -44,6 +44,7 @@ void NodeBasic<NodeLattice>::processSearchNode()
     this->graph_node_ptr->pose = this->pose;
     this->graph_node_ptr->setMotionPrimitive(this->prim_ptr);
     this->graph_node_ptr->backwards(this->backward);
+    this->graph_node_ptr->setDriveDirection(this->drive_dir);
   }
 }
 
@@ -69,6 +70,7 @@ void NodeBasic<NodeLattice>::populateSearchNode(NodeLattice * & node)
   this->graph_node_ptr = node;
   this->prim_ptr = node->getMotionPrimitive();
   this->backward = node->isBackward();
+  this->drive_dir = node->getDriveDirection();
 }
 
 template class NodeBasic<Node2D>;

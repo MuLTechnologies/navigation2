@@ -60,6 +60,8 @@ void LatticeMotionTable::initMotionModel(
   non_straight_penalty = search_info.non_straight_penalty;
   cost_penalty = search_info.cost_penalty;
   reverse_penalty = search_info.reverse_penalty;
+  cusp_penalty = search_info.cusp_penalty;
+  footprint_score_mode = search_info.footprint_score_mode;
   travel_distance_reward = 1.0f - search_info.retrospective_penalty;
   current_lattice_filepath = search_info.lattice_filepath;
   allow_reverse_expansion = search_info.allow_reverse_expansion;
@@ -76,16 +78,14 @@ void LatticeMotionTable::initMotionModel(
   latticeFile >> json;
   num_angle_quantization = lattice_metadata.number_of_headings;
 
-  if (!state_space) {
-    if (!allow_reverse_expansion) {
-      state_space = std::make_shared<ompl::base::DubinsStateSpace>(
-        lattice_metadata.min_turning_radius);
-      motion_model = MotionModel::DUBIN;
-    } else {
-      state_space = std::make_shared<ompl::base::ReedsSheppStateSpace>(
-        lattice_metadata.min_turning_radius);
-      motion_model = MotionModel::REEDS_SHEPP;
-    }
+  // Radius in cells, like precomputeDistanceHeuristic(); the table is thread_local, so planning
+  // threads build their own state space here (metadata radius is in meters)
+  if (!allow_reverse_expansion) {
+    state_space = std::make_shared<ompl::base::DubinsStateSpace>(min_turning_radius);
+    motion_model = MotionModel::DUBIN;
+  } else {
+    state_space = std::make_shared<ompl::base::ReedsSheppStateSpace>(min_turning_radius);
+    motion_model = MotionModel::REEDS_SHEPP;
   }
 
   // Populate the motion primitives at each heading angle
@@ -189,11 +189,13 @@ NodeLattice::NodeLattice(const uint64_t index)
 : parent(nullptr),
   pose(0.0f, 0.0f, 0.0f),
   _cell_cost(std::numeric_limits<float>::quiet_NaN()),
+  _score_cost(std::numeric_limits<float>::quiet_NaN()),
   _accumulated_cost(std::numeric_limits<float>::max()),
   _index(index),
   _was_visited(false),
   _motion_primitive(nullptr),
   _backwards(false),
+  _drive_dir(-1),
   _is_node_valid(false)
 {
 }
@@ -207,6 +209,7 @@ void NodeLattice::reset()
 {
   parent = nullptr;
   _cell_cost = std::numeric_limits<float>::quiet_NaN();
+  _score_cost = std::numeric_limits<float>::quiet_NaN();
   _accumulated_cost = std::numeric_limits<float>::max();
   _was_visited = false;
   pose.x = 0.0f;
@@ -214,6 +217,7 @@ void NodeLattice::reset()
   pose.theta = 0.0f;
   _motion_primitive = nullptr;
   _backwards = false;
+  _drive_dir = -1;
   _is_node_valid = false;
 }
 
@@ -229,19 +233,37 @@ bool NodeLattice::isNodeValid(
   }
 
   // Check primitive end pose
-  // Convert grid quantization of primitives to radians, then collision checker quantization
-  static const double bin_size = 2.0 * M_PI / collision_checker->getPrecomputedAngles().size();
+  // Convert grid quantization of primitives to radians, then collision checker quantization.
+  // Not static: lattice planners in one process may use different heading counts
+  const double bin_size = 2.0 * M_PI / collision_checker->getPrecomputedAngles().size();
   const double & angle = motion_table.getAngleFromBin(this->pose.theta) / bin_size;
   if (collision_checker->inCollision(
       this->pose.x, this->pose.y, angle /*bin in collision checker*/, traverse_unknown))
   {
     _is_node_valid = false;
     _cell_cost = collision_checker->getCost();
+    _score_cost = _cell_cost;
     return false;
   }
 
+  // Score the pose last collision-checked, per footprint_score_mode
+  auto scorePose = [&](const float & x, const float & y, const float & bin) {
+      if (motion_table.footprint_score_mode == FootprintScoreMode::CENTER) {
+        return collision_checker->getCost();
+      }
+      if (motion_table.footprint_score_mode == FootprintScoreMode::POINTS_MAX) {
+        // Exact outline max when inCollision() just rasterized this pose's footprint (near
+        // obstacles); the samples alone miss contacts between points on the long sides
+        return std::max(
+          collision_checker->scoreFootprint(x, y, bin, true),
+          collision_checker->getFootprintCost());
+      }
+      return collision_checker->scoreFootprint(x, y, bin, false);
+    };
+
   // Set the cost of a node to the highest cost across the primitive
   float max_cell_cost = collision_checker->getCost();
+  float max_score_cost = scorePose(this->pose.x, this->pose.y, angle);
 
   // If valid motion primitives are set, check intermediary poses > 1 cell apart
   if (motion_primitive) {
@@ -280,21 +302,26 @@ bool NodeLattice::isNodeValid(
         {
           _is_node_valid = false;
           _cell_cost = std::max(max_cell_cost, collision_checker->getCost());
+          _score_cost = _cell_cost;
           return false;
         }
         max_cell_cost = std::max(max_cell_cost, collision_checker->getCost());
+        max_score_cost = std::max(
+          max_score_cost,
+          scorePose(prim_pose._x, prim_pose._y, prim_pose._theta / bin_size));
       }
     }
   }
 
   _cell_cost = max_cell_cost;
+  _score_cost = max_score_cost;
   _is_node_valid = true;
   return _is_node_valid;
 }
 
 float NodeLattice::getTraversalCost(const NodePtr & child)
 {
-  const float normalized_cost = child->getCost() / 252.0;
+  const float normalized_cost = child->getScoreCost() / 252.0;
   if (std::isnan(normalized_cost)) {
     throw std::runtime_error(
             "Node attempted to get traversal "
@@ -337,6 +364,11 @@ float NodeLattice::getTraversalCost(const NodePtr & child)
   if (child->isBackward()) {
     // reverse direction
     travel_cost *= motion_table.reverse_penalty;
+  }
+
+  // Forward/reverse switch since the last translating move (in-place rotations don't reset it)
+  if (getDriveDirection() >= 0 && getDriveDirection() != (child->isBackward() ? 1 : 0)) {
+    travel_cost += motion_table.cusp_penalty;
   }
 
   return travel_cost;
@@ -558,6 +590,10 @@ void NodeLattice::getNeighbors(
         neighbor->setMotionPrimitive(motion_primitives[i]);
         // Marking if this search was obtained in the reverse direction
         neighbor->backwards(backwards);
+        // Rotations keep the drive direction of the last translating move
+        neighbor->setDriveDirection(
+          motion_primitives[i]->trajectory_length < 1e-4 ? getDriveDirection() :
+          static_cast<int8_t>(backwards ? 1 : 0));
         neighbors.push_back(neighbor);
       } else {
         neighbor->setPose(initial_node_coords);
